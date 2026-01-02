@@ -1,0 +1,41 @@
+{
+  "name": "qzmusic",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build && electron-builder",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@applemusic-like-lyrics/core": "^0.2.0",
+    "@applemusic-like-lyrics/vue": "^0.2.0",
+    "@iconify/vue": "^5.0.0",
+    "@pixi/app": "^7.4.3",
+    "@pixi/core": "^7.4.3",
+    "@pixi/display": "^7.4.3",
+    "@pixi/filter-blur": "^7.4.3",
+    "@pixi/filter-bulge-pinch": "^5.1.1",
+    "@pixi/filter-color-matrix": "^7.4.3",
+    "@pixi/sprite": "^7.4.3",
+    "element-plus": "^2.13.0",
+    "jss": "^10.10.0",
+    "jss-preset-default": "^10.10.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.4.21",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "electron": "^30.0.1",
+    "electron-builder": "^24.13.3",
+    "sass-embedded": "^1.97.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.6",
+    "vite-plugin-electron": "^0.28.6",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vue-tsc": "^2.0.26"
+  },
+  "main": "dist-electron/main.js"
+}
