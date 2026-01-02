@@ -1,18 +1,37 @@
-# Vue 3 + TypeScript + Vite
+# QZ Music for Windows
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+一款简洁美观的跨平台音乐播放器，提供优雅的桌面音乐体验。  
+安卓版本请访问：[官方网站](https://music.qz.shiqianjiang.cn)
 
-## Recommended IDE Setup
+## 🛠 技术架构
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+| 技术             | 说明            |
+|----------------|---------------|
+| **Electron**   | 跨平台桌面应用框架     |
+| **Vue 3**      | 响应式前端框架       |
+| **TypeScript** | 类型安全的开发体验     |
+| **Pinia**      | 轻量级状态管理       |
+| **Vite**       | 现代化的前端构建工具    |
+| **QZ Plugins** | 高拓展性的插件运行环境   |
+| **AMLL**       | 歌词渲染与音乐生态辅助模块 |
 
-## Type Support For `.vue` Imports in TS
+## 📖 项目说明
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin) to make the TypeScript language service aware of `.vue` types.
+本项目为个人学习 **Vue + Electron** 的实践作品，旨在探索桌面应用开发的现代技术栈。
 
-If the standalone TypeScript plugin doesn't feel fast enough to you, Volar has also implemented a [Take Over Mode](https://github.com/johnsoncodehk/volar/discussions/471#discussioncomment-1361669) that is more performant. You can enable it by the following steps:
+> ⚠️ 注意：
+> - QZPlugin 仅提供插件运行框架，不包含任何默认音乐插件
+> - AMLL 提供功能接口，不关联具体音乐数据源
 
-1. Disable the built-in TypeScript Extension
-   1. Run `Extensions: Show Built-in Extensions` from VSCode's command palette
-   2. Find `TypeScript and JavaScript Language Features`, right click and select `Disable (Workspace)`
-2. Reload the VSCode window by running `Developer: Reload Window` from the command palette.
+## 📄 开源协议
+
+本项目采用 **AGPL v3** 开源协议。
+
+### 协议简要说明：
+
+- **自由使用**：允许任何人免费使用、修改和分发本软件
+- **开源要求**：基于本项目修改或衍生的代码**必须同样开源**，并保持相同的 AGPL v3 协议
+- **网络服务条款**：即使通过 Web API 或网络服务形式提供基于本项目的服务，也必须公开相应源代码
+- **保留版权与协议声明**：所有副本必须包含原始版权声明和完整的协议文本
+
+该协议旨在保障软件的自由性和开放性，促进开源社区的协作与发展。
