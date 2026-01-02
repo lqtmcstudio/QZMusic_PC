@@ -25,7 +25,7 @@
 
 ## 📄 开源协议
 
-本项目采用 **AGPL v3** 开源协议。
+本项目采用 [**AGPL v3**](https://github.com/lqtmcstudio/QZMusic_PC/blob/master/README.md) 开源协议。
 
 ### 协议简要说明：
 
