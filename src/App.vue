@@ -1,6 +1,5 @@
 <template>
   <div class="app-container" :class="{ 'dark-mode': store.darkMode }">
-    <SettingsOverlay />
     <SideBar />
 
     <main class="main-content">
@@ -49,9 +48,8 @@ import { usePlayerStore } from './stores/playerStore';
 import SideBar from './components/layout/SideBar.vue';
 import WindowControls from './components/layout/WindowControls.vue';
 import PlayerBar from './components/layout/PlayerBar.vue';
-import SettingsOverlay from "./components/layout/SettingsOverlay.vue";
 import { Icon } from '@iconify/vue';
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 
 const store = usePlayerStore();
@@ -172,73 +170,74 @@ html, body, #app {
 .app-container {
   display: grid;
   grid-template-columns: 220px 1fr; /* 侧边栏宽度 | 主内容 */
-  grid-template-rows: 1fr 80px;     /* 主体高度 | 播放器高度 */
+  grid-template-rows: 1fr auto;     /* 主体高度 | 播放器高度 */
   transition: background-color 0.6s ease;
-}
-
-/* 布局结构样式 */
-.app-container {
   height: 100vh;
   width: 100vw;
+  overflow: hidden;
+}
 
-  /* 侧边栏跨越第一行 */
-  .sidebar {
-    grid-column: 1 / 2;
-    grid-row: 1 / 2;
-  }
+/* 侧边栏样式 */
+.sidebar {
+  grid-column: 1 / 2;
+  grid-row: 1 / 3; /* 侧边栏跨越所有行 */
+}
 
-  /* 主内容区 */
-  .main-content {
-    grid-column: 2 / 3;
-    grid-row: 1 / 2;
+/* 主内容区 */
+.main-content {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--content-bg);
+  overflow: hidden;
+
+  /* 顶部拖拽区 */
+  .header-bar {
+    height: 60px;
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    -webkit-app-region: drag; /* Electron 拖拽 */
+    background: var(--header-bg);
     position: relative;
-    background: var(--content-bg);
-
-    /* 顶部拖拽区 */
-    .header-bar {
-      height: 60px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      -webkit-app-region: drag; /* Electron 拖拽 */
-      background: var(--header-bg);
+    z-index: 1000; /* 确保窗口控制按钮在最上层 */
+    padding-top: 10px; /* 添加上边距，避免贴边 */
+    
+    .header-left {
+      padding: 0 20px;
+      -webkit-app-region: no-drag;
       
-      .header-left {
-        padding: 0 20px;
-        -webkit-app-region: no-drag;
+      .navigation-buttons {
+        display: flex;
+        gap: 12px;
         
-        .navigation-buttons {
+        .nav-btn {
           display: flex;
-          gap: 12px;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          border: 1px solid var(--border-color);
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.3s ease;
           
-          .nav-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            border: 1px solid var(--border-color);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            
-            &:hover:not(:disabled) {
-              background: var(--bg-secondary);
-              border-color: var(--border-light);
-              transform: translateY(-2px);
-              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            }
-            
-            &:disabled {
-              opacity: 0.4;
-              cursor: not-allowed;
-              transform: none;
-              box-shadow: none;
-            }
+          &:hover:not(:disabled) {
+            background: var(--bg-secondary);
+            border-color: var(--border-light);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          }
+          
+          &:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
           }
         }
       }
@@ -248,8 +247,9 @@ html, body, #app {
     .content-scrollable {
       flex: 1;
       overflow-y: auto;
-      padding: 20px 40px;
+      padding: 0;
       background: var(--content-bg);
+      position: relative; /* 确保绝对定位的子元素能正确定位 */
 
       /* 隐藏滚动条但保留功能 */
       &::-webkit-scrollbar { width: 6px; }
@@ -262,14 +262,16 @@ html, body, #app {
       }
     }
   }
+}
 
-  /* 底部播放器跨越两列 */
-  .footer-player {
-    grid-column: 1 / 3;
-    grid-row: 2 / 3;
-    z-index: 200;
-    background: var(--player-bg);
-  }
+/* 底部播放器跨越两列 */
+.footer-player {
+  grid-column: 1 / 3;
+  grid-row: 2 / 3;
+  z-index: 200;
+  background: var(--player-bg);
+  height: 80px;
+  position: relative;
 }
 
 /* 路由动画 */

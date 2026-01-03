@@ -14,11 +14,20 @@ function createWindow() {
   win = new BrowserWindow({
     // 🔧 禁用原生标题栏（无边框）
     frame: false,
+    // 设置窗口最小大小
+    minWidth: 950,
+    minHeight: 700,
+    // 设置初始窗口大小
+    width: 1e3,
+    height: 800,
     icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
       preload: path.join(__dirname$1, "preload.mjs")
     }
   });
+  if (process.env.NODE_ENV === "development") {
+    win.webContents.openDevTools({ mode: "right" });
+  }
   win.webContents.on("did-finish-load", () => {
     win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   });
