@@ -23,6 +23,7 @@
     "jss": "^10.10.0",
     "jss-preset-default": "^10.10.0",
     "pinia": "^3.0.4",
+    "tdesign-vue-next": "^1.17.7",
     "vue": "^3.4.21",
     "vue-router": "^4.6.4"
   },

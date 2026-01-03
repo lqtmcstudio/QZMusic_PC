@@ -5,7 +5,27 @@
 
     <main class="main-content">
       <header class="header-bar">
-        <div class="header-left"></div>
+        <div class="header-left">
+          <!-- 路由导航按钮 -->
+          <div class="navigation-buttons">
+            <button 
+              class="nav-btn" 
+              @click="handleBack" 
+              :disabled="!canGoBack"
+              title="返回"
+            >
+              <Icon icon="lucide:chevron-left" width="18" />
+            </button>
+            <button 
+              class="nav-btn" 
+              @click="handleForward" 
+              :disabled="!canGoForward"
+              title="前进"
+            >
+              <Icon icon="lucide:chevron-right" width="18" />
+            </button>
+          </div>
+        </div>
         <WindowControls />
       </header>
 
@@ -30,8 +50,50 @@ import SideBar from './components/layout/SideBar.vue';
 import WindowControls from './components/layout/WindowControls.vue';
 import PlayerBar from './components/layout/PlayerBar.vue';
 import SettingsOverlay from "./components/layout/SettingsOverlay.vue";
+import { Icon } from '@iconify/vue';
+import { ref, watch, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 
 const store = usePlayerStore();
+const router = useRouter();
+const route = useRoute();
+
+// 跟踪路由历史，判断是否可以返回和前进
+const canGoBack = ref(true); // 返回按钮始终可用，让浏览器处理
+const canGoForward = ref(false);
+
+// 记录之前的路由路径
+const previousPath = ref(route.path);
+
+// 监听路由变化，更新前进按钮状态
+watch(
+  () => route.path,
+  (newPath) => {
+    // 当从歌单页返回主页时，前进按钮应该可用
+    if (newPath === '/' && previousPath.value.startsWith('/playlist/')) {
+      canGoForward.value = true;
+    } else if (newPath.startsWith('/playlist/')) {
+      // 当进入歌单页时，前进按钮不可用
+      canGoForward.value = false;
+    }
+    // 更新之前的路径
+    previousPath.value = newPath;
+  },
+  { immediate: true }
+);
+
+// 监听返回和前进事件
+const handleBack = () => {
+  router.back();
+};
+
+const handleForward = () => {
+  if (canGoForward.value) {
+    router.forward();
+    // 前进后前进按钮可能不可用，具体取决于历史记录
+    canGoForward.value = false;
+  }
+};
 </script>
 
 <style lang="scss">
@@ -142,6 +204,44 @@ html, body, #app {
       align-items: center;
       -webkit-app-region: drag; /* Electron 拖拽 */
       background: var(--header-bg);
+      
+      .header-left {
+        padding: 0 20px;
+        -webkit-app-region: no-drag;
+        
+        .navigation-buttons {
+          display: flex;
+          gap: 12px;
+          
+          .nav-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            
+            &:hover:not(:disabled) {
+              background: var(--bg-secondary);
+              border-color: var(--border-light);
+              transform: translateY(-2px);
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+            
+            &:disabled {
+              opacity: 0.4;
+              cursor: not-allowed;
+              transform: none;
+              box-shadow: none;
+            }
+          }
+        }
+      }
     }
 
     /* 路由视图滚动区 */

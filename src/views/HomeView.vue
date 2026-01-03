@@ -261,17 +261,22 @@ const playlistData = ref([
 
 ]);
 
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
 const handlePlayListClick = (item: any) => {
-  console.log("跳转到歌单详情:", item.id);
+  router.push(`/playlist/${item.id}`);
 };
 </script>
 
 <style scoped lang="scss">
 .home-view {
-  padding-bottom: 40px;
+  padding: 20px 0 40px 0;
 
   .section-container {
     margin-bottom: 40px;
+    padding: 0 20px;
 
     .section-header {
       display: flex;
@@ -282,18 +287,18 @@ const handlePlayListClick = (item: any) => {
       .section-title {
         font-size: 24px;
         font-weight: 800;
-        color: #1a1a1a;
+        color: var(--text-primary);
         margin: 0;
       }
 
       .more {
         font-size: 13px;
-        color: #888;
+        color: var(--text-secondary);
         display: flex;
         align-items: center;
         cursor: pointer;
         transition: color 0.2s;
-        &:hover { color: #ff6b6b; }
+        &:hover { color: #6366f1; }
       }
     }
   }

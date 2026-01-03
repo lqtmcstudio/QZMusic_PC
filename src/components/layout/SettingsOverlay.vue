@@ -30,11 +30,11 @@
               <h2>{{ menuItems.find(i => i.id === activeTab)?.name }}</h2>
               <div class="dummy-option">
                 <span>深色模式</span>
-                <el-switch v-model="store.darkMode" @change="logSetting('darkMode', store.darkMode)" />
+                <t-switch v-model="store.darkMode" @change="logSetting('darkMode', store.darkMode)" />
               </div>
               <div class="dummy-option">
                 <span>自动播放</span>
-                <el-switch v-model="settings.autoPlay" @change="logSetting('autoPlay', settings.autoPlay)" />
+                <t-switch v-model="settings.autoPlay" @change="logSetting('autoPlay', settings.autoPlay)" />
               </div>
             </div>
 
@@ -43,15 +43,15 @@
               <h2>{{ menuItems.find(i => i.id === activeTab)?.name }}</h2>
               <div class="dummy-option">
                 <span>启用高音质 (Hi-Res)</span>
-                <el-switch v-model="settings.hiResAudio" @change="logSetting('hiResAudio', settings.hiResAudio)" />
+                <t-switch v-model="settings.hiResAudio" @change="logSetting('hiResAudio', settings.hiResAudio)" />
               </div>
               <div class="dummy-option">
                 <span>开启桌面歌词</span>
-                <el-switch v-model="settings.desktopLyrics" @change="logSetting('desktopLyrics', settings.desktopLyrics)" />
+                <t-switch v-model="settings.desktopLyrics" @change="logSetting('desktopLyrics', settings.desktopLyrics)" />
               </div>
               <div class="dummy-option">
                 <span>音量增强</span>
-                <el-switch v-model="settings.volumeBoost" @change="logSetting('volumeBoost', settings.volumeBoost)" />
+                <t-switch v-model="settings.volumeBoost" @change="logSetting('volumeBoost', settings.volumeBoost)" />
               </div>
             </div>
 
@@ -60,11 +60,11 @@
               <h2>{{ menuItems.find(i => i.id === activeTab)?.name }}</h2>
               <div class="dummy-option">
                 <span>启用全局快捷键</span>
-                <el-switch v-model="settings.globalShortcuts" @change="logSetting('globalShortcuts', settings.globalShortcuts)" />
+                <t-switch v-model="settings.globalShortcuts" @change="logSetting('globalShortcuts', settings.globalShortcuts)" />
               </div>
               <div class="dummy-option">
                 <span>媒体键控制</span>
-                <el-switch v-model="settings.mediaKeys" @change="logSetting('mediaKeys', settings.mediaKeys)" />
+                <t-switch v-model="settings.mediaKeys" @change="logSetting('mediaKeys', settings.mediaKeys)" />
               </div>
             </div>
 
@@ -73,11 +73,11 @@
               <h2>{{ menuItems.find(i => i.id === activeTab)?.name }}</h2>
               <div class="dummy-option">
                 <span>下载完成后通知</span>
-                <el-switch v-model="settings.downloadNotify" @change="logSetting('downloadNotify', settings.downloadNotify)" />
+                <t-switch v-model="settings.downloadNotify" @change="logSetting('downloadNotify', settings.downloadNotify)" />
               </div>
               <div class="dummy-option">
                 <span>高质量下载</span>
-                <el-switch v-model="settings.hqDownload" @change="logSetting('hqDownload', settings.hqDownload)" />
+                <t-switch v-model="settings.hqDownload" @change="logSetting('hqDownload', settings.hqDownload)" />
               </div>
             </div>
 
