@@ -56,6 +56,9 @@ const store = usePlayerStore();
 const router = useRouter();
 const route = useRoute();
 
+// Register IPC
+store.init()
+
 // 跟踪路由历史，判断是否可以返回和前进
 const canGoBack = ref(true); // 返回按钮始终可用，让浏览器处理
 const canGoForward = ref(false);

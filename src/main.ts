@@ -16,7 +16,6 @@ const router = createRouter({
   routes: [
     { path: '/', component: HomeView },
     { path: '/playlist/:id', component: PlaylistDetailView },
-    // 可扩展其他路由
   ]
 })
 
