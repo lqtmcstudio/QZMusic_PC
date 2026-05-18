@@ -1,0 +1,109 @@
+/* 触控适配样式 */
+
+/* 基础触控优化 */
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+
+/* 按钮触控尺寸优化 */
+button,
+.nav-item,
+.playlist-card,
+.artist-card,
+.song-item,
+.more-btn,
+.play-btn {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+/* 触控时的视觉反馈 */
+.touch-feedback {
+    position: relative;
+    overflow: hidden;
+}
+
+.touch-feedback::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.touch-feedback:active::after {
+    opacity: 1;
+}
+
+/* 滚动优化 */
+.page-content,
+.sidebar {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+/* 滚动条触控优化 - 更宽的滚动条便于触控 */
+.page-content::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar {
+    width: 12px;
+}
+
+/* 交互元素触控优化 */
+.nav-item,
+.playlist-card,
+.artist-card,
+.song-item {
+    touch-action: manipulation;
+}
+
+/* 输入框触控优化 */
+input,
+textarea {
+    font-size: 16px; /* 防止 iOS 缩放 */
+}
+
+/* 播放控制按钮触控优化 */
+.media-button {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 12px;
+}
+
+/* 响应式触摸友好的间距 */
+@media (hover: none) and (pointer: coarse) {
+    /* 触控设备的优化 */
+    .content-wrapper {
+        padding: 16px;
+    }
+    
+    .nav-item {
+        padding: 14px 16px;
+        margin-bottom: 6px;
+    }
+    
+    .playlist-grid,
+    .artist-grid {
+        gap: 24px;
+    }
+    
+    .song-item {
+        padding: 16px;
+    }
+    
+    /* 显示覆盖层，不需要悬停也能看到 */
+    .play-overlay {
+        opacity: 0.7 !important;
+    }
+    
+    /* 触控时的点击反馈 */
+    .playlist-card:active,
+    .artist-card:active,
+    .song-item:active,
+    .nav-item:active {
+        transform: scale(0.98);
+        transition: transform 0.1s ease;
+    }
+}

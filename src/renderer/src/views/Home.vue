@@ -3,7 +3,7 @@
     <div class="content-wrapper">
       <!-- 每日推荐横幅 -->
       <div class="daily-recommend">
-        <div class="banner-content">
+        <div class="banner-content" @click="openDailyRecommend">
           <div class="date-badge">
             <div class="day">{{ currentDate.day }}</div>
             <div class="month">{{ currentDate.month }}月</div>
@@ -11,7 +11,7 @@
           <div class="banner-info">
             <h2 class="banner-title">每日推荐</h2>
             <p class="banner-desc">根据你的音乐口味，为你精选30首歌曲</p>
-            <button class="play-btn">
+            <button class="play-btn" @click.stop="playDailyRecommend">
               <Icon icon="lucide:play" class="play-icon" />
               立即播放
             </button>
@@ -26,16 +26,20 @@
           <button class="more-btn">更多</button>
         </div>
         <div class="playlist-grid">
-          <div class="playlist-card" v-for="i in 6" :key="i">
-            <div class="playlist-cover">
-              <div class="cover-gradient"></div>
+          <div 
+            class="playlist-card" 
+            v-for="playlist in playlists" 
+            :key="playlist.id"
+            @click="openPlaylist(playlist)"
+          >
+            <div class="playlist-cover" :style="{ background: playlist.gradient }">
               <div class="play-overlay">
                 <Icon icon="lucide:play" class="overlay-icon" />
               </div>
             </div>
             <div class="playlist-info">
-              <h4 class="playlist-name">精选歌单 {{ i }}</h4>
-              <p class="playlist-desc">30首歌曲</p>
+              <h4 class="playlist-name">{{ playlist.name }}</h4>
+              <p class="playlist-desc">{{ playlist.songCount }}首歌曲</p>
             </div>
           </div>
         </div>
@@ -48,11 +52,15 @@
           <button class="more-btn">更多</button>
         </div>
         <div class="artist-grid">
-          <div class="artist-card" v-for="i in 8" :key="i">
-            <div class="artist-avatar">
-              <div class="avatar-gradient"></div>
+          <div 
+            class="artist-card" 
+            v-for="artist in artists" 
+            :key="artist.id"
+            @click="openArtist(artist)"
+          >
+            <div class="artist-avatar" :style="{ background: artist.gradient }">
             </div>
-            <p class="artist-name">歌手 {{ i }}</p>
+            <p class="artist-name">{{ artist.name }}</p>
           </div>
         </div>
       </div>
@@ -61,19 +69,23 @@
       <div class="section">
         <div class="section-header">
           <h3 class="section-title">新歌速递</h3>
-          <button class="more-btn">播放全部</button>
+          <button class="more-btn" @click="playAllNewSongs">播放全部</button>
         </div>
         <div class="song-list">
-          <div class="song-item" v-for="i in 10" :key="i">
-            <div class="song-index">{{ i }}</div>
-            <div class="song-cover">
-              <div class="cover-gradient"></div>
+          <div 
+            class="song-item" 
+            v-for="(song, index) in newSongs" 
+            :key="song.id"
+            @click="playSong(song)"
+          >
+            <div class="song-index">{{ index + 1 }}</div>
+            <div class="song-cover" :style="{ background: song.gradient }">
             </div>
             <div class="song-info">
-              <h4 class="song-title">歌曲名称 {{ i }}</h4>
-              <p class="song-artist">歌手名称</p>
+              <h4 class="song-title">{{ song.title }}</h4>
+              <p class="song-artist">{{ song.artist }}</p>
             </div>
-            <div class="song-duration">03:45</div>
+            <div class="song-duration">{{ song.duration }}</div>
           </div>
         </div>
       </div>
@@ -82,8 +94,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const currentDate = computed(() => {
   const now = new Date();
@@ -92,6 +107,66 @@ const currentDate = computed(() => {
     month: now.getMonth() + 1
   };
 });
+
+// 模拟数据
+const playlists = ref([
+  { id: 1, name: '华语流行精选', songCount: 50, gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { id: 2, name: '欧美金曲榜', songCount: 45, gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+  { id: 3, name: '轻音乐助眠', songCount: 30, gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+  { id: 4, name: '怀旧经典老歌', songCount: 60, gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+  { id: 5, name: '电子舞曲', songCount: 40, gradient: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+  { id: 6, name: '民谣小调', songCount: 35, gradient: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' }
+]);
+
+const artists = ref([
+  { id: 1, name: '周杰伦', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { id: 2, name: '林俊杰', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { id: 3, name: '邓紫棋', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+  { id: 4, name: '陈奕迅', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+  { id: 5, name: 'Taylor Swift', gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+  { id: 6, name: 'Ed Sheeran', gradient: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+  { id: 7, name: '薛之谦', gradient: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' },
+  { id: 8, name: '李荣浩', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }
+]);
+
+const newSongs = ref([
+  { id: 1, title: '稻香', artist: '周杰伦', duration: '03:45', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { id: 2, title: '晴天', artist: '周杰伦', duration: '04:29', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { id: 3, title: '夜曲', artist: '周杰伦', duration: '03:58', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+  { id: 4, title: '江南', artist: '林俊杰', duration: '04:06', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+  { id: 5, title: '光年之外', artist: '邓紫棋', duration: '03:55', gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+  { id: 6, title: '十年', artist: '陈奕迅', duration: '03:25', gradient: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+  { id: 7, title: '演员', artist: '薛之谦', duration: '04:16', gradient: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' },
+  { id: 8, title: '李白', artist: '李荣浩', duration: '03:43', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { id: 9, title: '七里香', artist: '周杰伦', duration: '04:58', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { id: 10, title: '可惜没如果', artist: '林俊杰', duration: '04:52', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }
+]);
+
+// 交互函数
+const openDailyRecommend = () => {
+  router.push('/playlist');
+};
+
+const playDailyRecommend = () => {
+  console.log('播放每日推荐');
+};
+
+const openPlaylist = (playlist: any) => {
+  console.log('打开歌单:', playlist);
+  router.push('/playlist');
+};
+
+const openArtist = (artist: any) => {
+  console.log('打开歌手:', artist);
+};
+
+const playSong = (song: any) => {
+  console.log('播放歌曲:', song);
+};
+
+const playAllNewSongs = () => {
+  console.log('播放全部新歌');
+};
 </script>
 
 <style scoped>
@@ -124,6 +199,7 @@ const currentDate = computed(() => {
   box-shadow: var(--shadow-lg);
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .banner-content::before {
@@ -263,12 +339,6 @@ const currentDate = computed(() => {
   background: var(--color-bg-tertiary);
 }
 
-.cover-gradient {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-
 .play-overlay {
   position: absolute;
   inset: 0;
@@ -339,12 +409,6 @@ const currentDate = computed(() => {
   overflow: hidden;
   margin: 0 auto 12px;
   background: var(--color-bg-tertiary);
-}
-
-.avatar-gradient {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
 .artist-name {
