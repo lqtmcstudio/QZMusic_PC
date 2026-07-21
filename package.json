@@ -3,13 +3,12 @@
   "private": true,
   "author": "lqtmcstudio",
   "description": "QZMusic - 简洁、美观、拓展性强的音乐播放器",
-  "version": "0.0.0",
+  "version": "1.0.2",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "electron:build": "electron-vite build && electron-builder --win --x64 --config --publish never",
-    "electron:build:ia32": "electron-vite build && electron-builder --win --ia32 --config --publish never"
+    "electron:build": "electron-vite build && electron-builder --win --x64 --config --publish never"
   },
   "dependencies": {
     "@applemusic-like-lyrics/core": "file:amll-local/packages/core",
@@ -39,7 +38,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.7",
-    "electron": "42.0.0-alpha.5",
+    "electron": "^42.4.1",
     "electron-builder": "^24.13.3",
     "electron-vite": "^5.0.0",
     "sass-embedded": "^1.97.1",
@@ -50,6 +49,10 @@
     "vue-tsc": "^2.2.12"
   },
   "main": "out/main/index.js",
+  "trustedDependencies": [
+    "electron",
+    "sass-embedded"
+  ],
   "build": {
     "productName": "QZMusic",
     "appId": "love.qz.music",
@@ -68,12 +71,8 @@
     },
     "extraResources": [
       {
-        "from": "core/qzplayer.exe",
-        "to": "core/qzplayer.exe"
-      },
-      {
-        "from": "core/libfftw3f-3.dll",
-        "to": "core/libfftw3f-3.dll"
+        "from": "core/",
+        "to": "core/"
       },
       {
         "from": "native/taglib_reader/build/taglib_reader_cli.exe",

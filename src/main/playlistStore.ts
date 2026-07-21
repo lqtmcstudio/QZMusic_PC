@@ -9,21 +9,16 @@ export type PlaylistScope = 'local' | 'cloud'
 export interface PlaylistSong {
     id: string
     name: string
-    artist?: string
     artists?: string
     source: string
-    picUrl?: string
     pic?: string
     mPic?: string
     sPic?: string
     albumName?: string | null
     albumId?: string | null
-    duration?: string
     interval?: string
     url?: string
-    type?: string
     qualities?: Record<string, string>
-    types?: Record<string, string>
 }
 
 export interface PlaylistInfo {
@@ -35,7 +30,15 @@ export interface PlaylistInfo {
     author?: string
     play_count?: string
     visit_count?: number
+    like_count?: number
     is_public?: boolean
+}
+
+export interface PlaylistOwner {
+    id: string
+    nickname: string
+    username: string
+    avatar?: string | null
 }
 
 export interface AppPlaylist {
@@ -45,6 +48,7 @@ export interface AppPlaylist {
     info: PlaylistInfo
     list: PlaylistSong[]
     total: number
+    owner?: PlaylistOwner
 }
 
 type LocalPlaylistFile = Omit<AppPlaylist, 'scope' | 'source' | 'total'> & {
@@ -70,27 +74,21 @@ function assertLocalId(id: string): void {
 }
 
 function normalizeSong(song: any): PlaylistSong {
-    const id = String(song?.id ?? song?.songmid ?? song?.songId ?? '')
-    const artist = song?.artist ?? song?.artists ?? song?.singer ?? ''
-    const pic = song?.picUrl ?? song?.pic ?? song?.mPic ?? song?.img ?? ''
-    const types = song?.types ?? song?.qualities ?? {}
+    const id = String(song?.id ?? song?.songmid ?? '')
+    const artist = song?.artists ?? song?.singer ?? ''
+    const pic = song?.pic ?? song?.img ?? ''
 
     return {
         ...song,
         id,
         name: String(song?.name ?? ''),
-        artist: Array.isArray(artist) ? artist.join('、') : String(artist),
         artists: Array.isArray(artist) ? artist.join('、') : String(artist),
         source: String(song?.source ?? 'local'),
-        picUrl: pic,
-        pic,
+        pic: String(pic),
         mPic: song?.mPic ?? song?.m_img ?? pic,
         sPic: song?.sPic ?? song?.s_img ?? pic,
-        interval: String(song?.interval ?? song?.duration ?? ''),
-        duration: String(song?.duration ?? song?.interval ?? ''),
-        type: song?.type ?? (song?.source === 'local' ? 'Local' : 'Remote'),
-        qualities: types,
-        types,
+        interval: String(song?.interval ?? '--/--'),
+        qualities: song?.qualities ?? song?.types ?? {},
     }
 }
 
@@ -104,7 +102,7 @@ function normalizeLocalPlaylist(raw: LocalPlaylistFile): AppPlaylist {
             id: raw.id,
             name: raw.info?.name || '新建歌单',
             desc: raw.info?.desc || '',
-            img: raw.info?.img || list[0]?.picUrl || '',
+            img: raw.info?.img || list[0]?.pic || '',
             cover_mode: raw.info?.cover_mode || 'auto',
             author: raw.info?.author || '本地',
             play_count: raw.info?.play_count || '',
@@ -121,6 +119,12 @@ function normalizeCloudPlaylist(raw: any): AppPlaylist {
     const list = Array.isArray(raw?.list) ? raw.list.map(normalizeSong) : []
     const id = String(info?.id ?? raw?.id ?? '')
     const total = Number(raw?.total ?? info?.total ?? list.length) || list.length
+    const owner = raw?.owner ? {
+        id: String(raw.owner.id || ''),
+        nickname: String(raw.owner.nickname || ''),
+        username: String(raw.owner.username || ''),
+        avatar: raw.owner.avatar || null,
+    } : undefined
     return {
         id,
         scope: 'cloud',
@@ -129,15 +133,17 @@ function normalizeCloudPlaylist(raw: any): AppPlaylist {
             id,
             name: info?.name || '云端歌单',
             desc: info?.desc || '',
-            img: info?.img || info?.pic || list[0]?.picUrl || '',
+            img: info?.img || info?.pic || list[0]?.pic || '',
             cover_mode: info?.cover_mode || info?.coverMode || 'auto',
             author: info?.author || '',
             play_count: info?.play_count || '',
             visit_count: Number(info?.visit_count ?? info?.play_count ?? 0) || 0,
+            like_count: Number(info?.like_count ?? 0) || 0,
             is_public: Boolean(info?.is_public ?? info?.public ?? false),
         },
         list,
         total,
+        owner,
     }
 }
 
@@ -222,7 +228,7 @@ function normalizeImportedPlaylist(raw: any): AppPlaylist {
             id,
             name: rawInfo?.name || '导入的歌单',
             desc: rawInfo?.desc || '',
-            img: rawInfo?.img || rawInfo?.pic || list[0]?.picUrl || '',
+            img: rawInfo?.img || rawInfo?.pic || list[0]?.pic || '',
             cover_mode: rawInfo?.cover_mode || rawInfo?.coverMode || 'auto',
             author: '本地',
             play_count: '',
@@ -263,7 +269,7 @@ export async function listPublicPlaylists(
     const query = new URLSearchParams({
         page: String(Math.max(1, Number(page) || 1)),
         limit: String(Math.max(1, Math.min(50, Number(limit) || 50))),
-        sort: ['visit', 'name', 'total'].includes(sort) ? sort : 'visit',
+        sort: ['visit', 'name', 'total', 'like'].includes(sort) ? sort : 'visit',
     })
     if (search.trim()) query.set('search', search.trim())
     const raw = await qzFetch(`/playlist/public?${query.toString()}`)
@@ -356,7 +362,7 @@ export async function addSong(scope: PlaylistScope, id: string, song: PlaylistSo
             if (index >= 0 && index <= playlist.list.length) playlist.list.splice(index, 0, normalizedSong)
             else playlist.list.push(normalizedSong)
         }
-        playlist.info.img = playlist.info.img || normalizedSong.picUrl || ''
+        playlist.info.img = playlist.info.img || normalizedSong.pic || ''
         return writeLocalPlaylist(playlist)
     }
 
@@ -372,7 +378,7 @@ export async function removeSong(scope: PlaylistScope, id: string, index: number
     if (scope === 'local') {
         const playlist = readLocalPlaylist(id)
         if (index >= 0 && index < playlist.list.length) playlist.list.splice(index, 1)
-        playlist.info.img = playlist.list[0]?.picUrl || ''
+        playlist.info.img = playlist.list[0]?.pic || ''
         return writeLocalPlaylist(playlist)
     }
 

@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus';
 import type { Song } from '../types/song';
 import { parseLyric } from '../utils/lyricUtil'
 import { useListenTogetherStore } from './listenTogether';
+import { useAuthStore } from './auth';
 import { calibratedNow } from './timeCalibrator';
 export enum PlayMode {
     List = 'list',
@@ -135,21 +136,23 @@ export const usePlayerStore = defineStore('player', () => {
     const notifyTogetherSetList = () => {
         const together = listenTogether();
         if (together?.canControl && !together.isApplyingRemote) {
-            together.sendSetList([...playlist.value]);
+            together.sendSetList([...playlist.value], currentIndex.value);
         }
     };
 
     const notifyTogetherSeek = () => {
         const together = listenTogether();
         if (together?.canControl && !together.isApplyingRemote) {
-            together.sendSeek(currentTime.value, currentIndex.value);
+            together.sendSeek(currentTime.value);
         }
     };
 
     const notifyTogetherPlayback = (playing = isPlaying.value) => {
         const together = listenTogether();
-        if (together?.canControl && !together.isApplyingRemote) {
-            together.sendPlayback(playing);
+        // 应用远端状态期间: 仅抑制「回声」(本端值 == 刚应用的远端值); 与远端值不同的变化一律视为
+        // 用户真实操作并下发, 避免 isApplyingRemote 时间窗吞掉用户 pause/play 意图。
+        if (together?.canControl && !(together.isApplyingRemote && playing === together.lastAppliedPlaying)) {
+            together.sendPlayback(playing, currentTime.value);
         }
     };
 
@@ -159,6 +162,9 @@ export const usePlayerStore = defineStore('player', () => {
         lastHeartbeatTick = now;
 
         if (!isPlaying.value || !currentSong.value) return;
+        // 计时器被挂起(系统休眠/后台节流)会导致 delta 异常大;
+        // 此时音频实际已断, 不应把休眠时长计入听歌时长(否则 duration > interval 触发 Illegal heartbeat)。
+        if (delta > 10000) return;
         heartbeatDuration.value += delta;
 
         if (heartbeatDuration.value < HEARTBEAT_INTERVAL_MS || heartbeatSending) return;
@@ -166,7 +172,9 @@ export const usePlayerStore = defineStore('player', () => {
         const durationToSend = HEARTBEAT_INTERVAL_MS;
         heartbeatDuration.value = Math.max(0, heartbeatDuration.value - durationToSend);
         try {
-            await window.electronAPI?.heartbeat?.sendPc(durationToSend, calibratedNow());
+            // 用原始墙钟 Date.now(), 不用 calibratedNow() —— 校时偏移会随周期重校变化,
+            // 导致服务端按 (timestamp - last_time) 算出的 interval 与 duration 不符被判 "Illegal heartbeat data"。
+            await window.electronAPI?.heartbeat?.sendPc(durationToSend, Date.now());
         } catch (error) {
             console.warn('[Heartbeat] PC heartbeat failed:', error);
         } finally {
@@ -230,68 +238,107 @@ export const usePlayerStore = defineStore('player', () => {
         }
     };
 
+    // Record recently played song (fire-and-forget, only for logged-in users)
+    const recordRecentSong = (song: Song) => {
+        try {
+            let auth: ReturnType<typeof useAuthStore>;
+            try { auth = useAuthStore(); } catch { return; }
+            const userId = auth.state.userInfo?.id;
+            if (!userId || !window.electronAPI?.user?.addRecentSong) return;
+            if (song.source === 'local') return;
+            window.electronAPI.user.addRecentSong(userId, {
+                id: song.id,
+                name: song.name,
+                artists: song.artists,
+                source: song.source,
+                pic: song.pic || song.mPic || song.sPic || '',
+                mPic: song.mPic || song.pic || '',
+                sPic: song.sPic || song.pic || '',
+                albumName: song.albumName,
+                albumId: song.albumId,
+                interval: song.interval,
+                qualities: song.qualities,
+                quality: song.quality,
+            }).catch(() => {});
+        } catch {
+            // silently ignore
+        }
+    };
+
+    // 防重入: 同一首歌正在加载时, 忽略重复触发(避免 PING/UPDATE 密集时重复 loadfile 触发代理级联)
+    let loadingSongKey: string | null = null;
+
     const playSong = async (song: Song, autoPlay = true, queueIndex?: number) => {
         if (!song) return;
-        console.log(song);
-        currentSong.value = song;
-        if (typeof queueIndex === 'number') {
-            currentIndex.value = queueIndex;
-        } else {
-            const foundIndex = playlist.value.findIndex(s => s.id === song.id);
-            if (foundIndex !== -1) {
-                currentIndex.value = foundIndex;
-            }
+        const songKey = `${song.source}:${song.id}`;
+        if (loadingSongKey === songKey) {
+            console.log('[Player] same song already loading, skip:', song.name);
+            return;
         }
-
-        await activateDummyAudio();
-        updateMediaSession(song);
-        fetchLyrics(song);
-
-        // Get URL (Cache -> Network)
-        let playUrl = song.url;
-        if (song.type === 'Remote' && song.source) {
-            // Use Local Proxy
-            const quality = 'hires';
-            playUrl = `http://localhost:5266/music?source=${song.source}&id=${song.id}&quality=${quality}`;
-            console.log('[Player] Using Proxy:', playUrl);
-        }
-
-        if (playUrl) {
-            console.log('Playing:', song.name, 'AutoPlay:', autoPlay);
-            try {
-                await window.electronAPI.qzplayer.load(playUrl);
-                if (autoPlay) {
-                    await window.electronAPI.qzplayer.play();
-                    isPlaying.value = true;
-                } else {
-                    // Ensure it's paused if load auto-starts and we don't want it to
-                    // But usually we just don't call play. If loadfile auto-plays, we might need to pause.
-                    // For now, let's assume load doesn't force play or we can pause immediately.
-                    // Actually, let's force pause just in case loadfile defaults to play.
-                    await window.electronAPI.qzplayer.pause();
-                    isPlaying.value = false;
-                    syncDummyAudioState(false);
+        loadingSongKey = songKey;
+        try {
+            console.log(song);
+            currentSong.value = song;
+            if (typeof queueIndex === 'number') {
+                currentIndex.value = queueIndex;
+            } else {
+                const foundIndex = playlist.value.findIndex(s => s.id === song.id);
+                if (foundIndex !== -1) {
+                    currentIndex.value = foundIndex;
                 }
-                song.url = playUrl;
-                currentSongRetryCount.value = 0;
-                playErrorCount.value = 0;
-                notifyTogetherSeek();
-                notifyTogetherPlayback(autoPlay);
-            } catch (e) {
-                // IPC call failed (rare), handle sync error
-                console.error("IPC Play request failed:", e);
+            }
+
+            await activateDummyAudio();
+            updateMediaSession(song);
+            fetchLyrics(song);
+
+            // Get URL (Cache -> Network)
+            let playUrl = song.url; // 本地文件路径(local)
+            if (song.source && song.source !== 'local') {
+                // Remote: 走本地代理按 source+id 取
+                const quality = 'hires';
+                playUrl = `http://localhost:5266/music?source=${song.source}&id=${song.id}&quality=${quality}`;
+                console.log('[Player] Using Proxy:', playUrl);
+            }
+
+            if (playUrl) {
+                console.log('Playing:', song.name, 'AutoPlay:', autoPlay);
+                try {
+                    await window.electronAPI.qzplayer.load(playUrl);
+                    if (autoPlay) {
+                        await window.electronAPI.qzplayer.play();
+                        isPlaying.value = true;
+                    } else {
+                        await window.electronAPI.qzplayer.pause();
+                        isPlaying.value = false;
+                        syncDummyAudioState(false);
+                    }
+                    song.url = playUrl;
+                    currentSongRetryCount.value = 0;
+                    // Record to recent plays (fire-and-forget)
+                    recordRecentSong(song);
+                    playErrorCount.value = 0;
+                    // 仅锚定位置; PLAY 交由播放器真正开始时(pause 属性事件)发送,
+                    // 避免加载/缓冲期间服务端时钟空转导致后续永久落后。
+                    notifyTogetherSeek();
+                } catch (e) {
+                    // IPC call failed (rare), handle sync error
+                    console.error("IPC Play request failed:", e);
+                    if (autoPlay) await handlePlayError();
+                }
+            } else {
+                console.warn("Song has no URL");
                 if (autoPlay) await handlePlayError();
             }
-        } else {
-            console.warn("Song has no URL");
-            if (autoPlay) await handlePlayError();
+        } finally {
+            loadingSongKey = null;
         }
     };
 
     const fetchLyrics = async (song: Song) => {
         lyrics.value = { lines: [] }; // Reset
         if (!song || !song.id) return;
-        if (song.type === 'Local' || song.source === 'local') {
+        if (song.source === 'local') {
             const localLyric = typeof song.lyric === 'string' ? song.lyric.trim() : '';
             if (localLyric) {
                 lyrics.value = { lines: parseLyric(localLyric) };
@@ -317,9 +364,9 @@ export const usePlayerStore = defineStore('player', () => {
 
         navigator.mediaSession.metadata = new MediaMetadata({
             title: song.name,
-            artist: song.artist,
+            artist: song.artists,
             album: song.albumName || '',
-            artwork: song.picUrl ? [{ src: song.picUrl, sizes: '512x512', type: 'image/png' }] : []
+            artwork: song.pic ? [{ src: song.pic, sizes: '512x512', type: 'image/png' }] : []
         });
 
         navigator.mediaSession.setActionHandler('play', () => window.electronAPI.qzplayer.play());
@@ -336,8 +383,14 @@ export const usePlayerStore = defineStore('player', () => {
 
     const next = async (manual = true) => {
         if (playlist.value.length === 0) return;
+        const together = listenTogether();
+        const inTogether = together?.canControl && !together.isApplyingRemote;
+        // 一起听: 与服务端线性推进一致(服务端 NEXT = currentIndex+1), 避免 random 本地与服务端错位
         let nextIndex = currentIndex.value;
-        if (playMode.value === PlayMode.Single && !manual) {
+        if (inTogether) {
+            nextIndex = (currentIndex.value + 1) % playlist.value.length;
+            together!.sendNext();
+        } else if (playMode.value === PlayMode.Single && !manual) {
             nextIndex = currentIndex.value;
         } else if (playMode.value === PlayMode.Random) {
             nextIndex = Math.floor(Math.random() * playlist.value.length);
@@ -350,8 +403,13 @@ export const usePlayerStore = defineStore('player', () => {
 
     const prev = async () => {
         if (playlist.value.length === 0) return;
+        const together = listenTogether();
+        const inTogether = together?.canControl && !together.isApplyingRemote;
         let prevIndex = currentIndex.value;
-        if (playMode.value === PlayMode.Random) {
+        if (inTogether) {
+            prevIndex = (currentIndex.value - 1 + playlist.value.length) % playlist.value.length;
+            together!.sendPrev();
+        } else if (playMode.value === PlayMode.Random) {
             prevIndex = Math.floor(Math.random() * playlist.value.length);
         } else {
             prevIndex = (currentIndex.value - 1 + playlist.value.length) % playlist.value.length;
@@ -362,6 +420,10 @@ export const usePlayerStore = defineStore('player', () => {
 
     const playQueueIndex = async (index: number) => {
         if (index < 0 || index >= playlist.value.length) return;
+        const together = listenTogether();
+        if (together?.canControl && !together.isApplyingRemote) {
+            together.sendSelect(index);
+        }
         currentIndex.value = index;
         await playSong(playlist.value[index], true, index);
     };
@@ -407,7 +469,7 @@ export const usePlayerStore = defineStore('player', () => {
         playlist.value.splice(index, 1);
         const together = listenTogether();
         if (together?.canControl && !together.isApplyingRemote) {
-            together.sendRemoveSong(removedSong, index, currentIndex.value);
+            together.sendRemoveSong(removedSong, index);
         }
 
         if (playlist.value.length === 0) {
@@ -451,14 +513,18 @@ export const usePlayerStore = defineStore('player', () => {
         notifyTogetherSetList();
     };
 
-    const applyTogetherState = async (data: any) => {
-        const nextList = Array.isArray(data.list) ? data.list as Song[] : playlist.value;
+    const applyTogetherState = async (data: any, isHeartbeat = false) => {
+        // 服务端权威外推时间轴: 位置 = base_position_ms + (playing ? calibratedNow - base_timestamp_ms : 0)
+        const nextList = Array.isArray(data.list) ? (data.list as Song[]) : playlist.value;
         const nextIndex = Math.max(
             0,
             Math.min(Number(data.currentIndex ?? currentIndex.value) || 0, Math.max(0, nextList.length - 1))
         );
-        const nextMs = Math.max(0, Number(data.currentMs ?? currentTime.value) || 0);
         const shouldPlay = Boolean(data.playing);
+        const basePos = Math.max(0, Number(data.base_position_ms ?? 0) || 0);
+        const baseTs = Number(data.base_timestamp_ms ?? 0) || 0;
+        const delayMs = baseTs > 0 ? Math.max(0, calibratedNow() - baseTs) : 0;
+        const targetMs = shouldPlay ? Math.max(0, basePos + delayMs) : basePos;
 
         if (Array.isArray(data.list)) {
             playlist.value = nextList;
@@ -496,9 +562,11 @@ export const usePlayerStore = defineStore('player', () => {
             }
         }
 
-        if (Math.abs((currentTime.value || 0) - nextMs) > 1200) {
-            await window.electronAPI.qzplayer.seek(nextMs);
-            currentTime.value = nextMs;
+        // 显式动作(SEEK/PLAY/...)用小阈值, 保证用户 seek 立即同步; 心跳漂移纠正用大阈值, 避免微跳。
+        const seekThreshold = isHeartbeat ? 800 : 150;
+        if (Math.abs((currentTime.value || 0) - targetMs) > seekThreshold) {
+            await window.electronAPI.qzplayer.seek(targetMs);
+            currentTime.value = targetMs;
         }
     };
 
@@ -508,6 +576,17 @@ export const usePlayerStore = defineStore('player', () => {
 
         try {
             if (playlist.value.length === 0) {
+                isPlaying.value = false;
+                playErrorCount.value = 0;
+                currentSongRetryCount.value = 0;
+                syncDummyAudioState(false);
+                return;
+            }
+
+            // 一起听听众: 不自动跳歌/重试, 交给 host 控制, 避免失步 + 代理级联
+            const together = listenTogether();
+            if (together?.connected && !together.isHost) {
+                await window.electronAPI.qzplayer.pause();
                 isPlaying.value = false;
                 playErrorCount.value = 0;
                 currentSongRetryCount.value = 0;
@@ -543,8 +622,9 @@ export const usePlayerStore = defineStore('player', () => {
     };
 
     // Listeners
+    let lastReportedDurationKey: string | null = null;
     if (window.electronAPI) {
-        window.electronAPI.qzplayer.onEvent((_event, data) => {
+        window.electronAPI.qzplayer.onEvent(async (_event, data) => {
             if (data.event === 'property-change') {
                 if (data.name === 'pause') {
                     const isPaused = data.data;
@@ -553,15 +633,37 @@ export const usePlayerStore = defineStore('player', () => {
                     notifyTogetherPlayback(!isPaused);
                 }
                 if (data.name === 'time-pos') currentTime.value = data.data; //毫秒级
-                if (data.name === 'duration') duration.value = data.data;    //毫秒级
+                if (data.name === 'duration') {
+                    duration.value = data.data;    //毫秒级
+                    // 上报解码时长供服务端计算切歌 (按 source:id 去重)
+                    const together = listenTogether();
+                    const song = currentSong.value;
+                    if (together?.connected && song && data.data > 0) {
+                        const key = `${song.source}:${song.id}`;
+                        if (key !== lastReportedDurationKey) {
+                            lastReportedDurationKey = key;
+                            together.sendMediaLoaded(currentIndex.value, data.data);
+                        }
+                    }
+                }
                 if (data.name === 'loudness') loudness.value = data.data;
                 if (data.name === 'spectrum') spectrum.value = data.data;
+                // 音频链路变化 (独占模式切歌时)
+                if (data.name === 'audio-chain' || data.name === 'audio-device') {
+                    console.log('[Player] Audio chain/device updated:', data.data);
+                }
             }
 
             if (data.event === 'end-file') {
                 const reason = data.reason;
                 if (reason === 'eof') {
-                    next(false);
+                    // 一起听: 切歌完全由服务端 reconcile 控制, 客户端不自动 next 也不发 EOF,
+                    // 否则会与服务端双重切歌并互相错位。
+                    const together = listenTogether();
+                    if (!together?.connected) {
+                        next(false);
+                    }
+                    // 一起听模式下: 等待服务端 SYNC 切到下一首
                 } else if (reason === 'error') {
                     handlePlayError().then();
                 }
@@ -581,7 +683,12 @@ export const usePlayerStore = defineStore('player', () => {
     const seek = async (time: number) => {
         await window.electronAPI.qzplayer.seek(time);
         currentTime.value = time;
-        notifyTogetherSeek();
+        // 用户主动 seek: 直接发送, 绕过 notifyTogetherSeek 的 isApplyingRemote 守卫,
+        // 避免在应用远端 UPDATE 的窗口内用户 seek 被吞掉导致“seek 没同步到对面”。
+        const together = listenTogether();
+        if (together?.canControl) {
+            together.sendSeek(time);
+        }
     };
 
     const toggleMode = () => {
@@ -619,6 +726,11 @@ export const usePlayerStore = defineStore('player', () => {
     });
 
     watch([currentTime, duration, isPlaying, currentSong], syncTaskbarProgress, { immediate: true });
+
+    // 后台保活: 播放时阻止系统休眠/息屏, 避免黑屏后音频中断
+    watch(isPlaying, (playing) => {
+        window.electronAPI?.setKeepAwake?.(Boolean(playing)).catch(() => {});
+    }, { immediate: true });
 
     // Restore initial state (without playing)
     if (playlist.value.length > 0 && currentIndex.value >= 0 && currentIndex.value < playlist.value.length) {

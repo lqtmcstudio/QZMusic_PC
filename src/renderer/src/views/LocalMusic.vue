@@ -247,7 +247,7 @@ const filteredSongs = computed(() => {
   const list = q
     ? songs.value.filter((song) => (
         song.name.toLowerCase().includes(q) ||
-        song.artist.toLowerCase().includes(q) ||
+        song.artists.toLowerCase().includes(q) ||
         (song.albumName || '').toLowerCase().includes(q)
       ))
     : songs.value.slice()
@@ -260,7 +260,7 @@ const filteredSongs = computed(() => {
   })
 })
 
-const artistCount = computed(() => new Set(songs.value.map((song) => song.artist)).size)
+const artistCount = computed(() => new Set(songs.value.map((song) => song.artists)).size)
 const albumCount = computed(() => new Set(songs.value.map((song) => song.albumName)).size)
 const totalItems = computed(() => groupBy.value === 'all' ? filteredSongs.value.length : groupedSongs.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / pageSize)))
@@ -270,7 +270,7 @@ const pagedSongs = computed(() => filteredSongs.value.slice(pageStart.value, pag
 const groupedSongs = computed(() => {
   const map = new Map<string, LocalSong[]>()
   for (const song of filteredSongs.value) {
-    const key = groupBy.value === 'artist' ? song.artist : song.albumName
+    const key = groupBy.value === 'artist' ? song.artists : song.albumName
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(song)
   }

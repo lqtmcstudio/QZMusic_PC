@@ -2,6 +2,28 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 
+export type BassMode = 'speaker' | 'headphone';
+
+export interface BassSourceState {
+    enabled: boolean;          // 总开关, false=旁路(位级透明)
+    mode: BassMode;            // 普通模式预设
+    advanced: boolean;          // 高级模式开关
+    // 高级模式手动参数:
+    crossover: number;         // Hz
+    gain: number;               // dB (lowshelf)
+    drive: number;              // dB (exciter drive)
+    mix: number;                // 0~100 湿声比例
+    release: number;            // ms (限幅器释放)
+    exciter: boolean;           // 谐波激励开关
+}
+
+export interface AudioOutputConfig {
+    deviceId: string | null;    // null=系统默认
+    exclusive: boolean;         // 独占模式开关
+    autoMatch: boolean;         // 切歌自动匹配 ALT Setting
+    logEnabled: boolean;        // 调试日志开关
+}
+
 export interface AppSettings {
     // Cache
     persistCache: boolean;
@@ -12,7 +34,29 @@ export interface AppSettings {
     // Playlist
     playlistPagingMode: 'infinite' | 'pagination';
     openPlayerOnSongClick: boolean;
+    // Playback
+    bass: BassSourceState; // 低音增强配置(普通/高级)
+    audioOutput: AudioOutputConfig; // 音频输出设备 + 独占模式
 }
+
+const DEFAULT_BASS: BassSourceState = {
+    enabled: false,
+    mode: 'speaker',
+    advanced: false,
+    crossover: 90,
+    gain: 3.5,
+    drive: 12,
+    mix: 18,
+    release: 250,
+    exciter: true,
+};
+
+const DEFAULT_AUDIO_OUTPUT: AudioOutputConfig = {
+    deviceId: null,
+    exclusive: false,
+    autoMatch: true,
+    logEnabled: true,
+};
 
 const DEFAULT_SETTINGS: AppSettings = {
     persistCache: true,
@@ -21,6 +65,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     accentColor: '#8289d3',
     playlistPagingMode: 'infinite',
     openPlayerOnSongClick: false,
+    bass: { ...DEFAULT_BASS },
+    audioOutput: { ...DEFAULT_AUDIO_OUTPUT },
 };
 
 let settingsCache: AppSettings | null = null;

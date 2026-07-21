@@ -23,6 +23,32 @@
         <Icon icon="lucide:pencil" />
         编辑资料
       </button>
+      <button
+        v-if="!isOwnProfile && authStore.isLoggedIn"
+        class="soft-btn follow-btn"
+        :class="{ following: profile?.subscribing }"
+        :disabled="togglingFollow"
+        @click="toggleFollow"
+      >
+        <Icon :icon="profile?.subscribing ? 'lucide:user-check' : 'lucide:user-plus'" />
+        {{ profile?.subscribing ? '已关注' : '关注' }}
+      </button>
+    </section>
+
+    <section class="stats-row">
+      <button class="stat-item clickable" @click="openFansList">
+        <Icon icon="lucide:users" />
+        <span>{{ fansCount }} 粉丝</span>
+      </button>
+      <button
+        class="stat-item"
+        :class="{ clickable: canViewFollowing }"
+        :disabled="!canViewFollowing"
+        @click="openFollowingList"
+      >
+        <Icon icon="lucide:user-round-check" />
+        <span>{{ followingCount }} 关注</span>
+      </button>
     </section>
 
     <section class="profile-grid">
@@ -83,12 +109,12 @@
             class="song-row"
           >
             <div class="song-thumb">
-              <img v-if="song.picUrl || song.pic" :src="song.picUrl || song.pic" alt="" />
+              <img v-if="song.pic" :src="song.pic" alt="" />
               <Icon v-else icon="lucide:music" />
             </div>
             <div>
               <strong>{{ song.name || '未知歌曲' }}</strong>
-              <span>{{ song.artist || song.artists || '未知歌手' }}</span>
+              <span>{{ song.artists || '未知歌手' }}</span>
             </div>
           </div>
           <button v-if="favSongs.length > 12" class="show-more-btn" @click.stop="openLikedPlaylist">
@@ -166,6 +192,10 @@ const favSongs = ref<PublicSong[]>([])
 const loading = ref(false)
 const showEditDialog = ref(false)
 const savingProfile = ref(false)
+const togglingFollow = ref(false)
+const fansCount = ref(0)
+const followingCount = ref(0)
+const canViewFollowing = ref(false)
 
 const draft = reactive({
   nickname: '',
@@ -190,12 +220,22 @@ const loadProfile = async () => {
   loading.value = true
   try {
     profile.value = await window.electronAPI.user.getProfile(routeUserId.value)
-    const [playlistResult, favResult] = await Promise.allSettled([
+    const [playlistResult, favResult, subsResult] = await Promise.allSettled([
       window.electronAPI.user.getPlaylists(routeUserId.value),
       window.electronAPI.user.getFavSongs(routeUserId.value),
+      window.electronAPI.user.getSubscriptions(routeUserId.value),
     ])
     playlists.value = playlistResult.status === 'fulfilled' ? playlistResult.value : []
     favSongs.value = favResult.status === 'fulfilled' ? favResult.value : []
+    if (subsResult.status === 'fulfilled') {
+      fansCount.value = subsResult.value?.fans ?? 0
+      followingCount.value = subsResult.value?.subs ?? 0
+      canViewFollowing.value = Boolean(isOwnProfile.value || subsResult.value?.can_view_subs)
+    } else {
+      fansCount.value = 0
+      followingCount.value = 0
+      canViewFollowing.value = isOwnProfile.value
+    }
     if (route.query.edit === '1' && isOwnProfile.value) openEditDialog()
   } catch (err: any) {
     ElMessage.error(err?.message || '用户资料加载失败')
@@ -241,6 +281,36 @@ const saveProfile = async () => {
 const openLikedPlaylist = () => {
   if (loading.value || favSongs.value.length === 0 || !routeUserId.value) return
   router.push({ name: 'UserLikedPlaylist', params: { id: routeUserId.value } })
+}
+
+const openFansList = () => {
+  if (!routeUserId.value) return
+  router.push({ name: 'UserConnections', params: { id: routeUserId.value, kind: 'fans' } })
+}
+
+const openFollowingList = () => {
+  if (!routeUserId.value || !canViewFollowing.value) return
+  router.push({ name: 'UserConnections', params: { id: routeUserId.value, kind: 'following' } })
+}
+
+const toggleFollow = async () => {
+  if (!routeUserId.value || togglingFollow.value) return
+  togglingFollow.value = true
+  try {
+    const result = await window.electronAPI.user.toggleFollow(routeUserId.value)
+    if (profile.value) {
+      profile.value = { ...profile.value, subscribing: result.subscribing }
+    }
+    // Refresh fans count
+    const subs = await window.electronAPI.user.getSubscriptions(routeUserId.value)
+    fansCount.value = subs?.fans ?? fansCount.value
+    followingCount.value = subs?.subs ?? followingCount.value
+    canViewFollowing.value = Boolean(isOwnProfile.value || subs?.can_view_subs)
+  } catch (err: any) {
+    ElMessage.error(err?.message || '关注操作失败')
+  } finally {
+    togglingFollow.value = false
+  }
 }
 
 watch(() => [route.params.id, route.query.edit, authStore.state.userInfo?.id], loadProfile, { immediate: true })
@@ -511,6 +581,49 @@ h1 {
 .soft-btn:hover,
 .ghost-btn:hover {
   color: var(--color-text-primary);
+}
+
+.follow-btn.following {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.stats-row {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  margin-top: 4px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}
+
+.stat-item svg {
+  width: 15px;
+  height: 15px;
+}
+
+.stat-item.clickable {
+  cursor: pointer;
+}
+
+.stat-item.clickable:hover {
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.stat-item:disabled {
+  opacity: 0.64;
+  cursor: default;
 }
 
 .primary-btn {

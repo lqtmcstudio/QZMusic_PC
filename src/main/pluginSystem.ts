@@ -127,27 +127,26 @@ async function unwrapPluginResult<T = any>(value: any): Promise<T> {
     return resolved as T
 }
 
+/**
+ * 插件返回的歌曲已是手机端 Music 格式(artists/pic/interval/qualities...),
+ * 这里只做最小规整: id/source 字符串化、补默认值, 不做字段重命名。
+ */
 function normalizeSearchItem(item: any, pluginId: string): any {
-    const id = item?.songmid ?? item?.id ?? item?.songId ?? ''
-    const artist = item?.singer ?? item?.artists ?? item?.artist ?? item?.artistName ?? ''
-    const pic = item?.img ?? item?.pic ?? item?.picUrl ?? item?.cover ?? ''
-    const mediumPic = item?.m_img ?? item?.mPic ?? pic
-    const smallPic = item?.s_img ?? item?.sPic ?? mediumPic
-    const types = item?.types ?? item?.qualities ?? {}
+    const id = item?.id ?? item?.songmid ?? ''
+    const artist = item?.artists ?? item?.singer ?? ''
+    const pic = item?.pic ?? item?.img ?? ''
+    const qualities = item?.qualities ?? item?.types ?? {}
 
     return {
         ...item,
         id: String(id),
-        songmid: String(id),
-        singer: Array.isArray(artist) ? artist.join('、') : String(artist),
         artists: Array.isArray(artist) ? artist.join('、') : String(artist),
-        img: pic,
-        pic,
-        m_img: mediumPic,
-        s_img: smallPic,
         source: item?.source || pluginId,
-        types,
-        qualities: types,
+        pic: String(pic),
+        sPic: String(item?.sPic ?? pic),
+        mPic: String(item?.mPic ?? item?.m_img ?? pic),
+        interval: String(item?.interval ?? '--/--'),
+        qualities,
     }
 }
 
@@ -176,38 +175,9 @@ function normalizeSearchResult(result: any, pluginId: string): any {
     }
 }
 
-function formatDuration(ms: number): string {
-    const totalSeconds = Math.floor(ms / 1000)
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-}
-
-function normalizeDuration(value: any): string {
-    if (typeof value === 'string' && /^\d{1,3}:\d{2}$/.test(value)) return value
-    const milliseconds = Number(value)
-    return Number.isFinite(milliseconds) ? formatDuration(milliseconds) : '00:00'
-}
-
 function normalizeSongForApp(item: any, pluginId: string): any {
-    const normalized = normalizeSearchItem(item, pluginId)
-    const picUrl = normalized.m_img || normalized.mPic || normalized.pic || normalized.img || normalized.picUrl || ''
-
-    return {
-        ...normalized,
-        id: String(normalized.id || normalized.songmid || ''),
-        name: String(normalized.name || ''),
-        artist: String(normalized.artists || normalized.singer || normalized.artist || ''),
-        picUrl,
-        url: '',
-        duration: normalizeDuration(normalized.interval ?? normalized.duration ?? normalized.dt),
-        source: String(normalized.source || pluginId),
-        albumId: normalized.albumId ? String(normalized.albumId) : null,
-        albumName: normalized.albumName || '',
-        type: 'Remote',
-        quality: 'auto',
-        types: normalized.types ?? normalized.qualities ?? {},
-    }
+    // 插件返回已是 Music 格式, normalizeSearchItem 已规整, 直接透传
+    return normalizeSearchItem(item, pluginId)
 }
 
 function normalizePluginCollection(result: any, pluginId: string, id: string, kind: 'playlist' | 'album'): any {
@@ -218,7 +188,7 @@ function normalizePluginCollection(result: any, pluginId: string, id: string, ki
     const info = result?.info ?? result ?? {}
     const title = info.name || info.title || (kind === 'album' ? '插件专辑' : '插件歌单')
     const desc = info.desc || info.description || ''
-    const img = info.img || info.pic || info.picUrl || info.cover || list[0]?.picUrl || ''
+    const img = info.img || info.pic || info.picUrl || info.cover || list[0]?.pic || ''
     const author = info.author || info.artist || info.creator || ''
 
     return {

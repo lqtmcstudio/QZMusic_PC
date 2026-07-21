@@ -13,7 +13,7 @@
       >
         <div class="player-left">
           <div class="cover-ring" :class="{ playing: isPlaying, 'shared-cover': !isPlayerFullScreen }">
-            <img v-if="currentSong?.picUrl" :src="currentSong.picUrl" class="album-art" alt="" />
+            <img v-if="currentSong?.pic" :src="currentSong.pic" class="album-art" alt="" />
             <div v-else class="album-placeholder">
               <Icon icon="lucide:music" />
             </div>
@@ -21,7 +21,7 @@
 
           <div class="track-info">
             <div class="track-name">{{ currentSong?.name || '未知歌曲' }}</div>
-            <div class="track-artist">{{ currentSong?.artist || '未知歌手' }}</div>
+            <div class="track-artist">{{ currentSong?.artists || '未知歌手' }}</div>
           </div>
         </div>
 
@@ -379,7 +379,7 @@ const pickAlbumColor = (url?: string) => {
   image.src = url
 }
 
-watch(() => currentSong.value?.picUrl, (url) => pickAlbumColor(url), { immediate: true })
+watch(() => currentSong.value?.pic, (url) => pickAlbumColor(url), { immediate: true })
 
 onMounted(() => {
   window.addEventListener('click', closeFloatingPanels)

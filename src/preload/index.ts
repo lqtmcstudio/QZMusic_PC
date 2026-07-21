@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeWindow: () => ipcRenderer.send('window-close'),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     setTaskbarProgress: (progress: number, mode: 'normal' | 'paused' = 'normal') => ipcRenderer.invoke('window:setProgressBar', progress, mode),
+    setKeepAwake: (playing: boolean) => ipcRenderer.invoke('app:setKeepAwake', playing),
 
     // qzplayer Control
     qzplayer: {
@@ -29,6 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         togglePause: () => ipcRenderer.invoke('qzplayer-toggle-pause'),
         stop: () => ipcRenderer.invoke('qzplayer-stop'),
         setVolume: (vol: number) => ipcRenderer.invoke('qzplayer-set-volume', vol),
+        setBassConfig: (source: any) => ipcRenderer.invoke('qzplayer-set-bass-config', source),
         seek: (time: number) => ipcRenderer.invoke('qzplayer-seek', time),
         onEvent: (callback: (event: any, data: any) => void) => ipcRenderer.on('qzplayer-event', callback)
     },
@@ -96,6 +98,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         import: () => ipcRenderer.invoke('playlist:import'),
         convertScope: (scope: 'local' | 'cloud', id: string, targetScope: 'local' | 'cloud') => ipcRenderer.invoke('playlist:convertScope', scope, id, targetScope),
         copyToLocal: (scope: 'local' | 'cloud', id: string) => ipcRenderer.invoke('playlist:copyToLocal', scope, id),
+        toggleLike: (playlistId: string) => ipcRenderer.invoke('playlist:toggleLike', playlistId),
+        getLike: (playlistId: string) => ipcRenderer.invoke('playlist:getLike', playlistId),
     },
 
     image: {
@@ -104,7 +108,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     privacy: {
         getLibrary: () => ipcRenderer.invoke('privacy:getLibrary'),
-        setLibrary: (payload: { allow_public_library?: boolean; allow_public_profile?: boolean }) => ipcRenderer.invoke('privacy:setLibrary', toCloneableObject(payload)),
+        setLibrary: (payload: { allow_public_library?: boolean; allow_public_profile?: boolean; allow_public_following?: boolean }) => ipcRenderer.invoke('privacy:setLibrary', toCloneableObject(payload)),
     },
 
     user: {
@@ -112,6 +116,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getPlaylists: (userId: string) => ipcRenderer.invoke('user:getPlaylists', userId),
         getFavSongs: (userId: string) => ipcRenderer.invoke('user:getFavSongs', userId),
         updateProfile: (payload: any) => ipcRenderer.invoke('user:updateProfile', toCloneableObject(payload)),
+        getRecentSongs: (userId: string) => ipcRenderer.invoke('user:getRecentSongs', userId),
+        addRecentSong: (userId: string, song: any) => ipcRenderer.invoke('user:addRecentSong', userId, toCloneableObject(song)),
+        toggleFollow: (targetUserId: string) => ipcRenderer.invoke('user:toggleFollow', targetUserId),
+        getSubscriptions: (targetUserId: string) => ipcRenderer.invoke('user:getSubscriptions', targetUserId),
     },
 
     // Cache Control
@@ -139,5 +147,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         setTheme: (theme: 'dark' | 'light') => ipcRenderer.invoke('settings:setTheme', theme),
         getAccentColor: () => ipcRenderer.invoke('settings:getAccentColor'),
         setAccentColor: (color: string) => ipcRenderer.invoke('settings:setAccentColor', color)
+    },
+
+    // Audio Output (独占模式 + 设备选择)
+    audioOutput: {
+        getDevices: () => ipcRenderer.invoke('audio:getDevices'),
+        setDevice: (id: string | null, exclusive: boolean) => ipcRenderer.invoke('audio:setDevice', id, exclusive),
+        getChain: () => ipcRenderer.invoke('audio:getChain'),
+        getLog: (maxCount?: number) => ipcRenderer.invoke('audio:getLog', maxCount || 50),
     }
 })

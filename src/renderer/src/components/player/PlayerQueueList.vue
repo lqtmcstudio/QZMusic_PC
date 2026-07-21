@@ -21,15 +21,15 @@
         </span>
         <span v-else>{{ index + 1 }}</span>
       </div>
-      <img v-if="song.picUrl" :src="song.picUrl" class="queue-cover" alt="" />
+      <img v-if="song.pic" :src="song.pic" class="queue-cover" alt="" />
       <div v-else class="queue-cover queue-cover-placeholder">
         <Icon icon="lucide:music" />
       </div>
       <div class="queue-info">
         <div class="queue-name">{{ song.name }}</div>
-        <div class="queue-artist">{{ song.artist }}</div>
+        <div class="queue-artist">{{ song.artists }}</div>
       </div>
-      <div class="queue-duration">{{ song.duration || '--:--' }}</div>
+      <div class="queue-duration">{{ song.interval || '--:--' }}</div>
       <button class="queue-remove" title="移出播放列表" @click.stop="removeQueueItem(index)">
         <Icon icon="lucide:x" />
       </button>

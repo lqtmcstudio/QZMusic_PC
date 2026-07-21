@@ -2,15 +2,15 @@
   <div class="song-tile" :class="{ 'with-action': removable || reserveAction }" @click="$emit('play')" @contextmenu.prevent="openMenu">
     <div class="song-index">{{ displayIndex }}</div>
     <div class="song-cover">
-      <img v-if="song.picUrl" :src="song.picUrl" loading="lazy" alt="" />
+      <img v-if="song.pic" :src="song.pic" loading="lazy" alt="" />
       <Icon v-else icon="lucide:music" />
     </div>
     <div class="song-info">
       <h4 class="song-title" v-html="renderText(song.name)"></h4>
-      <p class="song-artist" v-html="renderText(song.artist)"></p>
+      <p class="song-artist" v-html="renderText(song.artists)"></p>
     </div>
     <div class="song-album" v-html="renderText(song.albumName || '-')"></div>
-    <div class="song-duration">{{ song.duration || '--:--' }}</div>
+    <div class="song-duration">{{ song.interval || '--:--' }}</div>
     <div v-if="removable || reserveAction" class="song-action">
       <button v-if="removable" class="remove-btn" title="移出歌单" @click.stop="$emit('remove')">
         <Icon icon="lucide:x" />
@@ -100,20 +100,19 @@ const toPlainSong = (song: Song): Song => {
   const raw = toRaw(song) as Song & Record<string, any>
   return {
     id: String(raw.id ?? ''),
-    hash: raw.hash ?? null,
-    picUrl: String(raw.picUrl ?? ''),
-    url: String(raw.url ?? ''),
     name: String(raw.name ?? ''),
-    artist: String(raw.artist ?? ''),
-    duration: String(raw.duration ?? ''),
+    artists: String(raw.artists ?? ''),
     source: String(raw.source ?? ''),
-    lyric: typeof raw.lyric === 'string' ? raw.lyric : undefined,
-    quality: raw.quality,
+    pic: String(raw.pic ?? ''),
+    sPic: raw.sPic,
+    mPic: raw.mPic,
+    interval: String(raw.interval ?? '--/--'),
+    qualities: raw.qualities && typeof raw.qualities === 'object' ? { ...raw.qualities } : undefined,
+    quality: raw.quality ?? null,
     albumId: raw.albumId ?? null,
     albumName: raw.albumName ?? null,
-    artistIds: Array.isArray(raw.artistIds) ? raw.artistIds.map(String) : null,
-    type: raw.type,
-    types: raw.types && typeof raw.types === 'object' ? { ...raw.types } : undefined,
+    url: typeof raw.url === 'string' ? raw.url : undefined,
+    lyric: typeof raw.lyric === 'string' ? raw.lyric : undefined,
   }
 }
 

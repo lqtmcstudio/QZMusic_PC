@@ -11,6 +11,7 @@ export interface UserInfo {
   region?: string | null
   intro?: string | null
   birthday?: string | null
+  subscribing?: boolean
 }
 
 export interface AuthState {

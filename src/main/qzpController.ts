@@ -16,6 +16,7 @@ export class QzpController extends EventEmitter {
     private lastKnownTime = 0;
     private desiredPause = true;
     private volume = 50;
+    private bassConfig: Record<string, unknown> | null = null;
     private isConnected = false;
     private isRestarting = false;
     private isShuttingDown = false;
@@ -160,6 +161,7 @@ export class QzpController extends EventEmitter {
         this.send(['observe_property', 4, 'idle-active']);
         this.send(['observe_property', 5, 'eof-reached']);
         this.send(['set_property', 'volume', this.volume]);
+        if (this.bassConfig) this.send(['set_property', 'bass-config', this.bassConfig]);
     }
 
     private restorePlaybackState(): void {
@@ -275,8 +277,29 @@ export class QzpController extends EventEmitter {
         return this.send(['set_property', 'volume', vol]);
     }
 
+    async setBassConfig(effective: Record<string, unknown>): Promise<void> {
+        this.bassConfig = effective;
+        return this.send(['set_property', 'bass-config', effective]);
+    }
+
     async seek(seconds: number): Promise<void> {
         return this.send(['seek', seconds, 'absolute']);
+    }
+
+    async getAudioDevices(): Promise<void> {
+        return this.send(['audio_devices']);
+    }
+
+    async setAudioDevice(deviceId: string | null, exclusive: boolean): Promise<void> {
+        return this.send(['set_audio_device', deviceId || '', exclusive ? 1 : 0]);
+    }
+
+    async getPlaybackChain(): Promise<void> {
+        return this.send(['get_playback_chain']);
+    }
+
+    async getAudioLog(maxCount = 50): Promise<void> {
+        return this.send(['get_audio_log', maxCount]);
     }
 
     destroy(): void {
@@ -373,6 +396,8 @@ export class QzpController extends EventEmitter {
                 this.desiredPause = Boolean(args[1]);
             } else if (args[0] === 'volume' && typeof args[1] === 'number') {
                 this.volume = args[1];
+            } else if (args[0] === 'bass-config' && typeof args[1] === 'object' && args[1] !== null) {
+                this.bassConfig = args[1] as Record<string, unknown>;
             }
         }
     }

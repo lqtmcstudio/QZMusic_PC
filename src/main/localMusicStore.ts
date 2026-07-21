@@ -26,14 +26,13 @@ export interface LocalSong {
     id: string
     path: string
     name: string
-    artist: string
+    artists: string
     albumName: string
-    duration: string
+    interval: string
     durationSeconds: number
     source: 'local'
-    type: 'Local'
     url: string
-    picUrl: string
+    pic: string
     lyric: string
     quality: string
     bitrate: number
@@ -97,9 +96,9 @@ function loadLibrary(): LocalMusicLibrary {
                         return exists
                     })
                     .map((song) => {
-                        if (!song.picUrl || !song.picUrl.startsWith('data:')) return song
+                        if (!song.pic || !song.pic.startsWith('data:')) return song
                         changed = true
-                        return { ...song, picUrl: '' }
+                        return { ...song, pic: '' }
                     })
                 : []
             const library = {
@@ -142,14 +141,13 @@ function createLocalSong(filePath: string, metadata: any): LocalSong {
         id: Buffer.from(filePath, 'utf8').toString('base64url'),
         path: filePath,
         name: title || fallbackName(filePath),
-        artist: artist || '未知艺术家',
+        artists: artist || '未知艺术家',
         albumName: album || '未知专辑',
-        duration: String(metadata.duration || '00:00'),
+        interval: String(metadata.duration || '00:00'),
         durationSeconds: Number(metadata.durationSeconds) || 0,
         source: 'local',
-        type: 'Local',
         url: filePath,
-        picUrl: metadata.coverPath ? pathToFileURL(String(metadata.coverPath)).toString() : '',
+        pic: metadata.coverPath ? pathToFileURL(String(metadata.coverPath)).toString() : '',
         lyric: String(metadata.lyric || '').trim(),
         quality: String(metadata.quality || ''),
         bitrate: Number(metadata.bitrate) || 0,

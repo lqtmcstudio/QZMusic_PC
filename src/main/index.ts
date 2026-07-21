@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, powerSaveBlocker } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import { QzpController } from './qzpController'
 import { startProxyServer, cleanupCache, getCacheDir, getCacheSize, setPersistCache, clearCacheNow, refreshCacheDir } from './proxyServer'
 import { PluginSystem } from './pluginSystem'
-import { loadSettings, saveSettings, getSetting, AppSettings } from './settingsStore'
+import { loadSettings, saveSettings, getSetting, AppSettings, BassSourceState, AudioOutputConfig } from './settingsStore'
 import {
     acceptAuthCallback,
     cancelQrLoginSession,
@@ -29,6 +29,12 @@ import {
     setLibraryPrivacy,
     updateCurrentUserProfile,
     uploadImage,
+    getRecentSongs,
+    addRecentSong,
+    togglePlaylistLike,
+    getPlaylistLike,
+    toggleUserFollow,
+    getUserSubscriptions,
     type AuthCallbackPayload,
 } from './authStore'
 import {
@@ -182,7 +188,63 @@ ipcMain.handle('window:setProgressBar', (_event, progress: number, mode: 'normal
     return true
 })
 
+// --- 后台保活: 播放时阻止系统休眠/息屏, 避免黑屏后音频中断 ---
+let keepAwakeId: number | null = null
+ipcMain.handle('app:setKeepAwake', (_event, playing: boolean) => {
+    try {
+        if (playing && keepAwakeId === null) {
+            keepAwakeId = powerSaveBlocker.start('prevent-display-sleep')
+        } else if (!playing && keepAwakeId !== null) {
+            powerSaveBlocker.stop(keepAwakeId)
+            keepAwakeId = null
+        }
+    } catch (err) {
+        console.warn('[KeepAwake] failed:', err)
+    }
+    return true
+})
+app.on('before-quit', () => {
+    if (keepAwakeId !== null) {
+        try { powerSaveBlocker.stop(keepAwakeId) } catch {}
+        keepAwakeId = null
+    }
+})
+
 // --- qzplayer IPC Handlers ---
+
+// 低音增强预设 (满档 amount=100)。普通模式按 amount 线性缩放 gain/drive/mix。
+const BASS_PRESETS = {
+    speaker:   { crossover: 90,  gain: 3.5, drive: 10, exciter: true,  mix: 18, release: 250 }, // 心理声学: 干声82%(湿18%)
+    headphone: { crossover: 100, gain: 8,   drive: 0,  exciter: false, mix: 70, release: 150 }, // 真实加成: 无激励
+} as const
+
+// 由源状态(普通/高级)算出下发给 C 核心的绝对参数
+function computeBassConfig(s: BassSourceState): Record<string, unknown> {
+    const enabled = s.enabled ? 1 : 0
+    if (s.advanced) {
+        return {
+            enabled,
+            exciter: s.exciter ? 1 : 0,
+            crossover: s.crossover,
+            gain: s.gain,
+            drive: s.drive,
+            mix: s.mix / 100,
+            release: s.release,
+        }
+    }
+    const p = BASS_PRESETS[s.mode]
+    // 普通模式: 直接用预设满档值
+    return {
+        enabled,
+        exciter: p.exciter ? 1 : 0,
+        crossover: p.crossover,
+        gain: p.gain,
+        drive: p.drive,
+        mix: p.mix / 100,
+        release: p.release,
+    }
+}
+
 ipcMain.handle('qzplayer-command', async (_, command: any[]) => {
     if (qzplayer) {
         qzplayer.send(command)
@@ -196,6 +258,10 @@ ipcMain.handle('qzplayer-pause', () => qzplayer?.pause())
 ipcMain.handle('qzplayer-toggle-pause', () => qzplayer?.togglePause())
 ipcMain.handle('qzplayer-stop', () => qzplayer?.stop())
 ipcMain.handle('qzplayer-set-volume', (_, vol) => qzplayer?.setVolume(vol))
+ipcMain.handle('qzplayer-set-bass-config', (_, source: BassSourceState) => {
+    const effective = computeBassConfig(source)
+    return qzplayer?.setBassConfig(effective)
+})
 ipcMain.handle('qzplayer-seek', (_, time) => qzplayer?.seek(time))
 
 // PluginSystem
@@ -280,10 +346,11 @@ ipcMain.handle('auth:logout', () => {
 })
 
 ipcMain.handle('privacy:getLibrary', () => getLibraryPrivacy())
-ipcMain.handle('privacy:setLibrary', (_event, payload: { allow_public_library?: boolean; allow_public_profile?: boolean }) => {
+ipcMain.handle('privacy:setLibrary', (_event, payload: { allow_public_library?: boolean; allow_public_profile?: boolean; allow_public_following?: boolean }) => {
     return setLibraryPrivacy({
         allow_public_library: typeof payload?.allow_public_library === 'boolean' ? payload.allow_public_library : undefined,
         allow_public_profile: typeof payload?.allow_public_profile === 'boolean' ? payload.allow_public_profile : undefined,
+        allow_public_following: typeof payload?.allow_public_following === 'boolean' ? payload.allow_public_following : undefined,
     })
 })
 
@@ -298,6 +365,30 @@ ipcMain.handle('user:getFavSongs', (_event, userId: string) => {
 })
 ipcMain.handle('user:updateProfile', (_event, payload: any) => {
     return updateCurrentUserProfile(payload || {})
+})
+
+// Recent Plays
+ipcMain.handle('user:getRecentSongs', (_event, userId: string) => {
+    return getRecentSongs(String(userId || ''))
+})
+ipcMain.handle('user:addRecentSong', (_event, userId: string, song: any) => {
+    return addRecentSong(String(userId || ''), song || {})
+})
+
+// Playlist Likes
+ipcMain.handle('playlist:toggleLike', (_event, playlistId: string) => {
+    return togglePlaylistLike(String(playlistId || ''))
+})
+ipcMain.handle('playlist:getLike', (_event, playlistId: string) => {
+    return getPlaylistLike(String(playlistId || ''))
+})
+
+// User Follow
+ipcMain.handle('user:toggleFollow', (_event, targetUserId: string) => {
+    return toggleUserFollow(String(targetUserId || ''))
+})
+ipcMain.handle('user:getSubscriptions', (_event, targetUserId: string) => {
+    return getUserSubscriptions(String(targetUserId || ''))
 })
 
 ipcMain.handle('heartbeat:pc', (_event, duration: number, timestamp?: number) => {
@@ -555,6 +646,39 @@ ipcMain.handle('settings:setAccentColor', (_, color: string) => {
     saveSettings({ accentColor: color })
 })
 
+// --- Audio Output (独占模式 + 设备选择) ---
+ipcMain.handle('audio:getDevices', async () => {
+    if (qzplayer) {
+        await qzplayer.getAudioDevices()
+        // 响应会通过 event 返回
+    }
+})
+
+ipcMain.handle('audio:setDevice', async (_event, deviceId: string | null, exclusive: boolean) => {
+    const settings = loadSettings()
+    const audioOutput: AudioOutputConfig = {
+        ...settings.audioOutput,
+        deviceId: deviceId || null,
+        exclusive,
+    }
+    saveSettings({ audioOutput })
+    if (qzplayer) {
+        await qzplayer.setAudioDevice(deviceId, exclusive)
+    }
+})
+
+ipcMain.handle('audio:getChain', async () => {
+    if (qzplayer) {
+        await qzplayer.getPlaybackChain()
+    }
+})
+
+ipcMain.handle('audio:getLog', async (_event, maxCount?: number) => {
+    if (qzplayer) {
+        await qzplayer.getAudioLog(maxCount || 50)
+    }
+})
+
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit()
@@ -616,7 +740,20 @@ app.whenReady().then(() => {
 
     // Start qzplayer
     qzplayer = new QzpController()
+    const initialSettings = loadSettings()
+    qzplayer.setBassConfig(computeBassConfig(initialSettings.bass))
     qzplayer.start()
+
+    // 初始化音频输出设备设置
+    if (initialSettings.audioOutput) {
+        const ao = initialSettings.audioOutput
+        if (ao.deviceId || ao.exclusive) {
+            // 延迟一下等设备初始化完成
+            setTimeout(() => {
+                qzplayer?.setAudioDevice(ao.deviceId, ao.exclusive)
+            }, 2000)
+        }
+    }
 
     qzplayer.on('event', (data) => {
         // Forward qzplayer events to Render Process

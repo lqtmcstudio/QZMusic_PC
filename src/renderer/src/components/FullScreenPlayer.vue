@@ -2,7 +2,7 @@
   <div class="fullscreen-player" :class="{ active: isPlayerFullScreen }">
     <div class="background-container">
       <BackgroundRender
-          :album="playerStore.currentSong?.picUrl"
+          :album="playerStore.currentSong?.pic"
           :album-is-video="false"
           ref="bgRef"
           style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
@@ -12,12 +12,13 @@
     <div v-if="isPlayerFullScreen" class="drag-bar"></div>
 
     <div class="horizontal-layout" :class="{ hideLyric: playerStore.hideLyricView }">
+      <div class="drag-area" @dblclick="toggleMaximize"></div>
       <div class="thumb">
         <ControlThumb @click="toggleFullScreen" />
       </div>
       <Cover
         :class="['cover', { 'shared-cover': isPlayerFullScreen }]"
-        :cover-url="playerStore.currentSong?.picUrl"
+        :cover-url="playerStore.currentSong?.pic"
         :music-paused="!isPlaying"
         :cover-video-paused="!isPlaying"
         :pause-shrink-aspect="0.75"
@@ -25,7 +26,7 @@
       <div class="controls">
         <MusicInfo
             :name="playerStore.currentSong?.name"
-            :artists="playerStore.currentSong?.artist.split('、')??undefined"
+            :artists="playerStore.currentSong?.artists?.split('、')??undefined"
             class="music-info-container"
         />
         <div>
@@ -104,9 +105,10 @@
             <PlayerQueueList class="playlist-scroll" variant="fullscreen" />
           </div>
         </Transition>
-        <!-- Lyric Player -->
+        <!-- Lyric Player: 常驻挂载(v-show), 避免每次开关列表时 AMLL(blur+spring) 重建卡顿 ~1s -->
         <LyricPlayer
-            v-if="isPlayerFullScreen && !showPlaylistPanel"
+            v-if="isPlayerFullScreen"
+            v-show="!showPlaylistPanel"
             ref="lyricPlayerRef"
             :lyric-lines="toRaw(playerStore.lyrics.lines)"
             :current-time="playerStore.currentTime"
@@ -175,7 +177,6 @@ const bgRef = ref<BackgroundRenderRef>();
 
 const showRemaining = ref(false);
 const showPlaylistPanel = ref(false);
-const lyricState = ref(false);
 
 const formatTime = (miliseconds: number) => {
   const seconds = miliseconds / 1000;
@@ -320,6 +321,10 @@ const toggleFullScreen = () => {
   playerStore.toggleFullScreen();
 };
 
+const toggleMaximize = () => {
+  window.electronAPI?.maximizeWindow();
+};
+
 const jumpTime = (e: LyricLineMouseEvent) => {
   const time = e.line.getLine().startTime;
   playerStore.seek(time);
@@ -327,11 +332,8 @@ const jumpTime = (e: LyricLineMouseEvent) => {
 }
 
 const togglePlaylistPanel = () => {
-  const opening = !showPlaylistPanel.value;
-  opening
-      ? (lyricState.value = playerStore.hideLyricView, playerStore.hideLyricView = false)
-      : (playerStore.hideLyricView = lyricState.value);
-  showPlaylistPanel.value = opening;
+  // 仅切换面板显隐; 不再触碰 hideLyricView, 避免关闭时整个横向布局(cover/controls 位移)重排卡顿。
+  showPlaylistPanel.value = !showPlaylistPanel.value;
 };
 
 // watch(()=>playerStore.currentTime,(t)=>{
@@ -375,13 +377,21 @@ const togglePlaylistPanel = () => {
   pointer-events: none;
 }
 
+.drag-area {
+  grid-column: 1 / -1;
+  grid-row: drag-area;
+  -webkit-app-region: drag;
+  z-index: 20;
+  position: relative;
+}
+
 .drag-bar {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 50px;
-  z-index: 100;
+  z-index: 10001;
   -webkit-app-region: drag;
   background: transparent;
 }

@@ -754,8 +754,17 @@ async function handleMusicRequest(req: http.IncomingMessage, res: http.ServerRes
             }
             return;
         } catch (err: any) {
+            // 响应已开始后客户端断开/abort (切歌/seek 取消下载): 属正常, 不刷屏
+            const benign = err?.name === 'AbortError' ||
+                /ECONNRESET|EPIPE|aborted|socket hang up/i.test(err?.message || '');
             if (res.headersSent || res.writableEnded || res.destroyed) {
-                console.warn('[Proxy] Request failed after response started:', err);
+                if (!benign) console.warn('[Proxy] Request failed after response started:', err);
+                return;
+            }
+
+            if (benign) {
+                // 客户端取消, 静默结束
+                try { res.destroy(); } catch {}
                 return;
             }
 
@@ -907,7 +916,13 @@ export function startProxyServer(persistCache = true): http.Server {
     });
 
     server.on('clientError', (err, socket) => {
-        console.warn('[Proxy] Client socket error:', err.message);
+        // ECONNRESET/EPIPE 等: 客户端切歌/seek 时主动断开, 属正常情况, 不当作错误刷屏
+        const msg = err?.message || '';
+        if (/ECONNRESET|EPIPE|aborted/i.test(msg)) {
+            try { socket.end(); } catch {}
+            return;
+        }
+        console.warn('[Proxy] Client socket error:', msg);
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
     });
 

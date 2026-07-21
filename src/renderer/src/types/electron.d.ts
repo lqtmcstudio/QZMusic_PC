@@ -1,9 +1,44 @@
+export type BassMode = 'speaker' | 'headphone';
+
+export interface BassSourceState {
+    enabled: boolean;
+    mode: BassMode;
+    advanced: boolean;
+    crossover: number;    // Hz
+    gain: number;          // dB
+    drive: number;         // dB
+    mix: number;           // 0~100 湿声比例
+    release: number;       // ms
+    exciter: boolean;
+}
+
+export interface AudioOutputConfig {
+    deviceId: string | null;
+    exclusive: boolean;
+    autoMatch: boolean;
+    logEnabled: boolean;
+}
+
+export interface AudioDeviceFormat {
+    sample_rate: number;
+    channels: number;
+    bits: number;
+}
+
+export interface AudioDeviceInfo {
+    id: string;
+    name: string;
+    is_default: boolean;
+    formats: AudioDeviceFormat[];
+}
+
 export interface IElectronAPI {
     minimizeWindow: () => void;
     maximizeWindow: () => void;
     closeWindow: () => void;
     isMaximized: () => Promise<boolean>;
     setTaskbarProgress: (progress: number, mode?: 'normal' | 'paused') => Promise<boolean>;
+    setKeepAwake: (playing: boolean) => Promise<boolean>;
     qzplayer: {
         load: (url: string) => Promise<void>;
         play: () => Promise<void>;
@@ -11,6 +46,7 @@ export interface IElectronAPI {
         togglePause: () => Promise<void>;
         stop: () => Promise<void>;
         setVolume: (vol: number) => Promise<void>;
+        setBassConfig: (source: BassSourceState) => Promise<void>;
         seek: (time: number) => Promise<void>;
         onEvent: (callback: (event: any, data: any) => void) => void;
     };
@@ -60,19 +96,25 @@ export interface IElectronAPI {
         import: () => Promise<{ success: boolean; canceled?: boolean; playlist?: AppPlaylist }>;
         convertScope: (scope: ManagedPlaylistScope, id: string, targetScope: ManagedPlaylistScope) => Promise<AppPlaylist>;
         copyToLocal: (scope: ManagedPlaylistScope, id: string) => Promise<AppPlaylist>;
+        toggleLike: (playlistId: string) => Promise<{ status: string; liked: boolean; like_count: number }>;
+        getLike: (playlistId: string) => Promise<{ status: string; liked: boolean; like_count: number }>;
     };
     image: {
         selectAndUpload: () => Promise<{ success: boolean; canceled?: boolean; url?: string; message?: string }>;
     };
     privacy: {
-        getLibrary: () => Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean }>;
-        setLibrary: (payload: { allow_public_library?: boolean; allow_public_profile?: boolean }) => Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean }>;
+        getLibrary: () => Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean; allow_public_following: boolean }>;
+        setLibrary: (payload: { allow_public_library?: boolean; allow_public_profile?: boolean; allow_public_following?: boolean }) => Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean; allow_public_following: boolean }>;
     };
     user: {
         getProfile: (userId: string) => Promise<UserInfo>;
         getPlaylists: (userId: string) => Promise<PlaylistInfo[]>;
         getFavSongs: (userId: string) => Promise<any[]>;
         updateProfile: (payload: Partial<UserInfo>) => Promise<UserInfo>;
+        getRecentSongs: (userId: string) => Promise<any[]>;
+        addRecentSong: (userId: string, song: any) => Promise<any>;
+        toggleFollow: (targetUserId: string) => Promise<{ status: string; subscribing: boolean }>;
+        getSubscriptions: (targetUserId: string) => Promise<{ status: string; fans: number; subs: number; fans_list?: string[]; subs_list?: string[]; can_view_subs?: boolean }>;
     };
     // Cache Control
     getCacheInfo: () => Promise<{ path: string; size: string; persistCache: boolean }>;
@@ -91,12 +133,19 @@ export interface IElectronAPI {
     };
     // Settings
     settings: {
-        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean }>;
-        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean }>) => Promise<any>;
+        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig }>;
+        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig }>) => Promise<any>;
         getTheme: () => Promise<'dark' | 'light'>;
         setTheme: (theme: 'dark' | 'light') => Promise<void>;
         getAccentColor: () => Promise<string>;
         setAccentColor: (color: string) => Promise<void>;
+    };
+    // Audio Output (独占模式 + 设备选择)
+    audioOutput: {
+        getDevices: () => Promise<void>;
+        setDevice: (id: string | null, exclusive: boolean) => Promise<void>;
+        getChain: () => Promise<void>;
+        getLog: (maxCount?: number) => Promise<void>;
     };
 }
 
@@ -156,7 +205,15 @@ export interface PlaylistInfo {
     author?: string;
     play_count?: string;
     visit_count?: number;
+    like_count?: number;
     is_public?: boolean;
+}
+
+export interface PlaylistOwner {
+    id: string;
+    nickname: string;
+    username: string;
+    avatar?: string | null;
 }
 
 export interface AppPlaylist {
@@ -167,20 +224,20 @@ export interface AppPlaylist {
     info: PlaylistInfo;
     list: any[];
     total: number;
+    owner?: PlaylistOwner;
 }
 
 export interface LocalSong {
     id: string;
     path: string;
     name: string;
-    artist: string;
+    artists: string;
     albumName: string;
-    duration: string;
+    interval: string;
     durationSeconds: number;
     source: 'local';
-    type: 'Local';
     url: string;
-    picUrl: string;
+    pic: string;
     lyric: string;
     quality: string;
     bitrate: number;

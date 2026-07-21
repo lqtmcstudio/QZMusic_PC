@@ -15,7 +15,15 @@ export interface PlaylistInfo {
   author?: string
   play_count?: string
   visit_count?: number
+  like_count?: number
   is_public?: boolean
+}
+
+export interface PlaylistOwner {
+  id: string
+  nickname: string
+  username: string
+  avatar?: string | null
 }
 
 export interface AppPlaylist {
@@ -26,26 +34,26 @@ export interface AppPlaylist {
   info: PlaylistInfo
   list: Song[]
   total: number
+  owner?: PlaylistOwner
 }
 
 const toPlainSong = (song: Song): Song => {
   const raw = toRaw(song) as Song & Record<string, any>
   return {
     id: String(raw.id ?? ''),
-    hash: raw.hash ?? null,
-    picUrl: String(raw.picUrl ?? ''),
-    url: String(raw.url ?? ''),
     name: String(raw.name ?? ''),
-    artist: String(raw.artist ?? ''),
-    duration: String(raw.duration ?? ''),
+    artists: String(raw.artists ?? ''),
     source: String(raw.source ?? ''),
-    lyric: typeof raw.lyric === 'string' ? raw.lyric : undefined,
-    quality: raw.quality,
+    pic: String(raw.pic ?? ''),
+    sPic: raw.sPic,
+    mPic: raw.mPic,
+    interval: String(raw.interval ?? '--/--'),
+    qualities: raw.qualities && typeof raw.qualities === 'object' ? { ...raw.qualities } : undefined,
+    quality: raw.quality ?? null,
     albumId: raw.albumId ?? null,
     albumName: raw.albumName ?? null,
-    artistIds: Array.isArray(raw.artistIds) ? raw.artistIds.map(String) : null,
-    type: raw.type,
-    types: raw.types && typeof raw.types === 'object' ? { ...raw.types } : undefined,
+    lyric: typeof raw.lyric === 'string' ? raw.lyric : undefined,
+    url: typeof raw.url === 'string' ? raw.url : undefined,
   }
 }
 

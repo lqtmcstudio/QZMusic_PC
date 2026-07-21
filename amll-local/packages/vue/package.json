@@ -53,7 +53,6 @@
 		"vue": "*"
 	},
 	"devDependencies": {
-		"@applemusic-like-lyrics/core": "file:../core",
 		"@biomejs/biome": "^2.4.8",
 		"@pixi/app": "^7.4.3",
 		"@pixi/core": "^7.4.3",

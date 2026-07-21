@@ -362,14 +362,14 @@ export async function updateCurrentUserProfile(payload: Partial<UserInfo>): Prom
     return userInfo
 }
 
-export async function getLibraryPrivacy(): Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean }> {
+export async function getLibraryPrivacy(): Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean; allow_public_following: boolean }> {
     const state = loadAuthState()
     const userId = state.userInfo?.id
     if (!userId) throw new Error('Not logged in')
     return qzFetch(`/user/${encodeURIComponent(userId)}/privacy/library`)
 }
 
-export async function setLibraryPrivacy(payload: { allow_public_library?: boolean; allow_public_profile?: boolean }): Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean }> {
+export async function setLibraryPrivacy(payload: { allow_public_library?: boolean; allow_public_profile?: boolean; allow_public_following?: boolean }): Promise<{ status: string; allow_public_library: boolean; allow_public_profile: boolean; allow_public_following: boolean }> {
     const state = loadAuthState()
     const userId = state.userInfo?.id
     if (!userId) throw new Error('Not logged in')
@@ -377,4 +377,44 @@ export async function setLibraryPrivacy(payload: { allow_public_library?: boolea
         method: 'PATCH',
         body: JSON.stringify(payload),
     })
+}
+
+// === Recent Plays ===
+
+export async function getRecentSongs(userId: string): Promise<any[]> {
+    if (!userId) throw new Error('Missing user id')
+    const result = await qzFetch(`/user/${encodeURIComponent(userId)}/recent/songs`)
+    return Array.isArray(result) ? result : []
+}
+
+export async function addRecentSong(userId: string, song: any): Promise<any> {
+    if (!userId) throw new Error('Missing user id')
+    return qzFetch(`/user/${encodeURIComponent(userId)}/recent/songs`, {
+        method: 'POST',
+        body: JSON.stringify(song),
+    })
+}
+
+// === Playlist Likes ===
+
+export async function togglePlaylistLike(playlistId: string): Promise<{ status: string; liked: boolean; like_count: number }> {
+    return qzFetch(`/playlist/${encodeURIComponent(playlistId)}/like`, {
+        method: 'POST',
+    })
+}
+
+export async function getPlaylistLike(playlistId: string): Promise<{ status: string; liked: boolean; like_count: number }> {
+    return qzFetch(`/playlist/${encodeURIComponent(playlistId)}/like`)
+}
+
+// === User Follow ===
+
+export async function toggleUserFollow(targetUserId: string): Promise<{ status: string; subscribing: boolean }> {
+    return qzFetch(`/user/${encodeURIComponent(targetUserId)}/subscribes`, {
+        method: 'PATCH',
+    })
+}
+
+export async function getUserSubscriptions(targetUserId: string): Promise<{ status: string; fans: number; subs: number; fans_list?: string[]; subs_list?: string[]; can_view_subs?: boolean }> {
+    return qzFetch(`/user/${encodeURIComponent(targetUserId)}/subscribes`)
 }

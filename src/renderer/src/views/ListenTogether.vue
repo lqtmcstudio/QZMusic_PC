@@ -74,12 +74,12 @@
 
         <div class="now-row">
           <div class="song-cover">
-            <img v-if="player.currentSong?.picUrl" :src="player.currentSong.picUrl" alt="" />
+            <img v-if="player.currentSong?.pic" :src="player.currentSong.pic" alt="" />
             <Icon v-else icon="lucide:music-2" />
           </div>
           <div class="song-copy">
             <span>{{ player.currentSong?.name || '未播放' }}</span>
-            <small>{{ player.currentSong?.artist || 'QZ Music' }}</small>
+            <small>{{ player.currentSong?.artists || 'QZ Music' }}</small>
           </div>
           <div class="play-state" :class="{ playing: player.isPlaying }">
             {{ player.isPlaying ? '播放中' : '已暂停' }}
@@ -96,10 +96,13 @@
         </div>
 
         <div class="member-list">
-          <div v-for="uid in together.userList" :key="uid" class="member-item">
-            <div class="avatar">{{ uid.slice(0, 1).toUpperCase() }}</div>
+          <div v-for="uid in together.userList" :key="uid" class="member-item" :class="{ 'is-self': isSelf(uid) }">
+            <div class="avatar">
+              <img v-if="memberAvatar(uid)" :src="memberAvatar(uid)" alt="" />
+              <span v-else>{{ uid.slice(0, 1).toUpperCase() }}</span>
+            </div>
             <div class="member-copy">
-              <span>{{ uid === authStore.state.userInfo?.id ? '我' : uid }}</span>
+              <span>{{ memberDisplayName(uid) }}</span>
               <small>{{ permissionLabel(together.allPermissions[uid] ?? 0) }}</small>
             </div>
             <button
@@ -130,11 +133,11 @@
             :class="{ active: index === player.currentIndex }"
           >
             <span class="queue-index">{{ String(index + 1).padStart(2, '0') }}</span>
-            <img v-if="song.picUrl" :src="song.picUrl" alt="" />
+            <img v-if="song.pic" :src="song.pic" alt="" />
             <div v-else class="queue-placeholder"><Icon icon="lucide:music" /></div>
             <div class="queue-copy">
               <span>{{ song.name }}</span>
-              <small>{{ song.artist }}</small>
+              <small>{{ song.artists }}</small>
             </div>
           </div>
           <div v-if="player.playlist.length === 0" class="empty-state">队列为空</div>
@@ -145,11 +148,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, inject, reactive, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage } from 'element-plus'
 import roomHeroBg from '../assets/long_width_bg.png'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore, type UserInfo } from '../stores/auth'
 import { useListenTogetherStore } from '../stores/listenTogether'
 import { usePlayerStore } from '../stores/player'
 
@@ -160,6 +163,45 @@ const openLoginDialog = inject<() => void>('openLoginDialog', () => authStore.lo
 
 const roomMode = ref<'dual' | 'multi'>('multi')
 const joinText = ref('')
+
+// 成员资料缓存: uid -> UserInfo。自身直接用 authStore 资料, 不发请求。
+const profileCache = reactive<Record<string, UserInfo>>({})
+
+const fetchProfiles = async (uids: string[]) => {
+  const myId = authStore.state.userInfo?.id
+  await Promise.all(
+    uids.map(async (uid) => {
+      if (!uid || profileCache[uid] || uid === myId) return
+      try {
+        profileCache[uid] = await window.electronAPI.user.getProfile(uid)
+      } catch {
+        /* 失败静默, 列表仍显示 uid 占位 */
+      }
+    })
+  )
+}
+
+watch(
+  () => together.userList,
+  (list) => { fetchProfiles(list) },
+  { immediate: true, deep: true }
+)
+
+const memberDisplayName = (uid: string) => {
+  if (uid === authStore.state.userInfo?.id) {
+    const me = authStore.state.userInfo
+    return me?.nickname || me?.username || uid
+  }
+  const p = profileCache[uid]
+  return p?.nickname || p?.username || uid
+}
+
+const memberAvatar = (uid: string) => {
+  if (uid === authStore.state.userInfo?.id) return authStore.state.userInfo?.avatar || ''
+  return profileCache[uid]?.avatar || ''
+}
+
+const isSelf = (uid: string) => uid === authStore.state.userInfo?.id
 
 const normalizedJoinCode = computed(() => {
   const text = joinText.value.trim()
@@ -180,7 +222,7 @@ const permissionText = computed(() => permissionLabel(together.permissionLevel))
 
 const permissionLabel = (level: number) => {
   if (level >= 2) return '房主'
-  if (level >= 1) return '可控制'
+  if (level >= 1) return '管理员'
   return '旁听'
 }
 
@@ -201,9 +243,11 @@ const leaveRoom = () => {
 
 const copyRoomCode = async () => {
   if (!together.roomId) return
-  const text = `加入一起听歌#${together.roomId}#`
+  const me = authStore.state.userInfo
+  const name = me?.nickname || me?.username || ''
+  const text = `${name}邀您一起听歌～\n复制这段文字打开QZMusic加入一起听歌#${together.roomId}#`
   await navigator.clipboard.writeText(text)
-  ElMessage.success('房间码已复制')
+  ElMessage.success('邀请口令已复制')
 }
 
 const togglePermission = (uid: string) => {
@@ -505,6 +549,30 @@ button:disabled {
   height: 36px;
   border-radius: 50%;
   font-weight: 800;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.member-item.is-self {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border-radius: 14px;
+  padding: 0 10px;
+  margin: 0 -10px;
+}
+
+.member-item.is-self .member-copy span {
+  color: var(--color-accent);
+}
+
+.self-tag {
+  color: var(--color-accent);
+  font-weight: 700;
+  margin-left: 4px;
 }
 
 .permission-btn {

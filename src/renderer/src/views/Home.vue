@@ -18,14 +18,14 @@
           </div>
         </div>
         <div class="now-card">
-          <img v-if="playerStore.currentSong?.picUrl" :src="playerStore.currentSong.picUrl" alt="" />
+          <img v-if="playerStore.currentSong?.pic" :src="playerStore.currentSong.pic" alt="" />
           <div v-else class="now-placeholder">
             <Icon icon="lucide:music-2" />
           </div>
           <div class="now-copy">
             <span>正在播放</span>
             <strong>{{ playerStore.currentSong?.name || '暂无歌曲' }}</strong>
-            <small>{{ playerStore.currentSong?.artist || '从搜索或歌单里选一首' }}</small>
+            <small>{{ playerStore.currentSong?.artists || '从搜索或歌单里选一首' }}</small>
           </div>
         </div>
       </section>
@@ -73,11 +73,11 @@
             @click="playRecommendedSong(index)"
           >
             <span class="thumb-wrap small">
-              <img :src="song.picUrl" alt="" />
+              <img :src="song.pic" alt="" />
             </span>
             <div class="song-card-copy">
               <span>{{ song.name }}</span>
-              <small>{{ song.artist }}</small>
+              <small>{{ song.artists }}</small>
             </div>
           </button>
         </div>
@@ -214,72 +214,67 @@ const recommendedSongs: Song[] = [
   {
     id: '1979009861',
     name: '光与影的对白',
-    artist: '洛天依Official',
-    picUrl: 'http://p1.music.126.net/G02hs1vJYJir359bx8wGhg==/109951167851086939.jpg?param=512y512',
+    artists: '洛天依Official',
+    pic: 'http://p1.music.126.net/G02hs1vJYJir359bx8wGhg==/109951167851086939.jpg?param=512y512',
     url: '',
-    duration: formatDuration(248257),
+    interval: formatDuration(248257),
     source: 'wy',
     albumId: '151073585',
     albumName: '依如初见',
-    type: 'Remote',
     quality: 'auto',
-    types: { jymaster: '165.47MB', hires: '53.85MB', lossless: '31.28MB', exhigh: '9.47MB', standard: '5.68MB', jyeffect: '92.07MB', sky: '28.79MB' },
+    qualities: { jymaster: '165.47MB', hires: '53.85MB', lossless: '31.28MB', exhigh: '9.47MB', standard: '5.68MB', jyeffect: '92.07MB', sky: '28.79MB' },
   },
   {
     id: '2750754678',
     name: '蝴蝶',
-    artist: '洛天依、桃小薇',
-    picUrl: 'http://p2.music.126.net/385Py82eEhF5D7_8C9QUpA==/109951172078581753.jpg?param=512y512',
+    artists: '洛天依、桃小薇',
+    pic: 'http://p2.music.126.net/385Py82eEhF5D7_8C9QUpA==/109951172078581753.jpg?param=512y512',
     url: '',
-    duration: formatDuration(219669),
+    interval: formatDuration(219669),
     source: 'wy',
     albumId: '286640710',
     albumName: '蝴蝶',
-    type: 'Remote',
     quality: 'auto',
-    types: { jymaster: '119.54MB', lossless: '21.14MB', exhigh: '8.38MB', standard: '5.03MB', jyeffect: '71.72MB', sky: '22.18MB' },
+    qualities: { jymaster: '119.54MB', lossless: '21.14MB', exhigh: '8.38MB', standard: '5.03MB', jyeffect: '71.72MB', sky: '22.18MB' },
   },
   {
     id: '2604527599',
     name: '蝴蝶',
-    artist: '洛天依Official',
-    picUrl: 'http://p2.music.126.net/EjxfEQw8OjhssWUpJlDTBQ==/109951169745955001.jpg?param=512y512',
+    artists: '洛天依Official',
+    pic: 'http://p2.music.126.net/EjxfEQw8OjhssWUpJlDTBQ==/109951169745955001.jpg?param=512y512',
     url: '',
-    duration: formatDuration(216104),
+    interval: formatDuration(216104),
     source: 'wy',
     albumId: '241083511',
     albumName: '再生',
-    type: 'Remote',
     quality: 'auto',
-    types: { jymaster: '121.05MB', hires: '43.11MB', lossless: '23.47MB', exhigh: '8.25MB', standard: '4.95MB', jyeffect: '73.86MB', sky: '22.66MB' },
+    qualities: { jymaster: '121.05MB', hires: '43.11MB', lossless: '23.47MB', exhigh: '8.25MB', standard: '4.95MB', jyeffect: '73.86MB', sky: '22.66MB' },
   },
   {
     id: '1854231422',
     name: 'モア！ジャンプ！モア！ (feat. 花里みのり&桐谷遥&桃井愛莉&日野森雫&初音ミク)',
-    artist: 'ナユタン星人、MORE MORE JUMP！、初音ミク',
-    picUrl: 'http://p1.music.126.net/PIZdmUbEUFLbfQy6rDm4sA==/109951166097068861.jpg?param=512y512',
+    artists: 'ナユタン星人、MORE MORE JUMP！、初音ミク',
+    pic: 'http://p1.music.126.net/PIZdmUbEUFLbfQy6rDm4sA==/109951166097068861.jpg?param=512y512',
     url: '',
-    duration: formatDuration(182183),
+    interval: formatDuration(182183),
     source: 'wy',
     albumId: '129194941',
     albumName: 'アイドル新鋭隊/モア！ジャンプ！モア！',
-    type: 'Remote',
     quality: 'auto',
-    types: { jymaster: '116.17MB', lossless: '37.57MB', exhigh: '6.95MB', standard: '4.17MB', jyeffect: '67.87MB', sky: '21.92MB' },
+    qualities: { jymaster: '116.17MB', lossless: '37.57MB', exhigh: '6.95MB', standard: '4.17MB', jyeffect: '67.87MB', sky: '21.92MB' },
   },
   {
     id: '28815250',
     name: '平凡之路',
-    artist: '朴树',
-    picUrl: 'http://p1.music.126.net/W_5XiCv3rGS1-J7EXpHSCQ==/18885211718782327.jpg?param=512y512',
+    artists: '朴树',
+    pic: 'http://p1.music.126.net/W_5XiCv3rGS1-J7EXpHSCQ==/18885211718782327.jpg?param=512y512',
     url: '',
-    duration: formatDuration(302119),
+    interval: formatDuration(302119),
     source: 'wy',
     albumId: '35444067',
     albumName: '猎户星座',
-    type: 'Remote',
     quality: 'auto',
-    types: { jymaster: '182.38MB', lossless: '31.83MB', exhigh: '11.53MB', standard: '6.92MB', jyeffect: '106.63MB', sky: '31.58MB' },
+    qualities: { jymaster: '182.38MB', lossless: '31.83MB', exhigh: '11.53MB', standard: '6.92MB', jyeffect: '106.63MB', sky: '31.58MB' },
   },
 ]
 

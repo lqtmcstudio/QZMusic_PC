@@ -2,11 +2,11 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-mark">
-        <Icon icon="lucide:music-2" />
+        <img :src="brandIcon" alt="QZ Music" class="brand-icon" />
       </div>
       <div class="brand-copy">
         <div class="brand-name">QZ Music</div>
-        <div class="brand-subtitle">Private listening room</div>
+        <div class="brand-subtitle">Enjoy~</div>
       </div>
     </div>
 
@@ -134,6 +134,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { usePlaylistsStore, type PlaylistScope } from '../stores/playlists'
+import brandIcon from '../assets/icon.png'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -248,6 +249,12 @@ onUnmounted(() => {
 .brand-mark svg {
   width: 23px;
   height: 23px;
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
 .brand-copy {

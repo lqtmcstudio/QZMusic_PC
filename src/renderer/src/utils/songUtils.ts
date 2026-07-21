@@ -7,32 +7,27 @@ export function formatDuration(ms: number): string {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-function normalizeDuration(value: unknown): string {
-    if (typeof value === 'string' && /^\d{1,3}:\d{2}$/.test(value)) {
-        return value;
-    }
-
-    const milliseconds = Number(value);
-    return Number.isFinite(milliseconds) ? formatDuration(milliseconds) : '00:00';
-}
-
-export function transformSearchSong(raw: any): Song {
-    const id = raw.songmid ?? raw.id ?? raw.songId ?? '';
-    const artist = raw.singer ?? raw.artists ?? raw.artist ?? raw.artistName ?? '';
-    const picUrl = raw.img ?? raw.pic ?? raw.picUrl ?? raw.cover ?? raw.m_img ?? raw.mPic ?? '';
-
+/**
+ * 插件返回的歌曲 JSON 已是手机端 Music 格式(artists/pic/interval/qualities...),
+ * 这里只做最小规整: id/source 字符串化, 缺省补默认值, 不做字段重命名。
+ */
+export function toSong(raw: any): Song {
     return {
-        id: String(id),
-        name: raw.name,
-        artist: Array.isArray(artist) ? artist.join('、') : String(artist),
-        picUrl,
-        url: '', // Empty initially
-        duration: normalizeDuration(raw.interval ?? raw.duration ?? raw.dt),
-        source: raw.source,
-        albumId: raw.albumId ? String(raw.albumId) : null,
-        albumName: raw.albumName,
-        type: 'Remote',
-        quality: 'auto',
-        types: raw.types ?? raw.qualities
+        id: String(raw?.id ?? raw?.songmid ?? ''),
+        name: String(raw?.name ?? ''),
+        artists: String(raw?.artists ?? raw?.singer ?? ''),
+        source: String(raw?.source ?? ''),
+        pic: String(raw?.pic ?? raw?.img ?? ''),
+        sPic: raw?.sPic ? String(raw.sPic) : undefined,
+        mPic: raw?.mPic ? String(raw.mPic) : undefined,
+        interval: String(raw?.interval ?? '--/--'),
+        qualities: raw?.qualities ?? raw?.types,
+        quality: raw?.quality ?? null,
+        albumName: raw?.albumName ?? null,
+        albumId: raw?.albumId ? String(raw.albumId) : null,
+        playCount: Number(raw?.playCount) || 0,
+        extra: raw?.extra,
+        lyric: typeof raw?.lyric === 'string' ? raw.lyric : undefined,
+        url: typeof raw?.url === 'string' ? raw.url : undefined,
     };
 }

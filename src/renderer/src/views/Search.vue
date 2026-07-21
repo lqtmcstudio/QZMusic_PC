@@ -119,7 +119,7 @@ import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { usePlayerStore } from '../stores/player';
-import { transformSearchSong } from '../utils/songUtils';
+import { toSong } from '../utils/songUtils';
 import SongTile from '../components/SongTile.vue';
 import type { Song } from '../types/song';
 
@@ -246,7 +246,7 @@ const fetchData = async () => {
         const result = await window.electronAPI.plugin.search(activePlugin.value, query.value, currentPage.value, limit.value);
         
         if (result && result.list) {
-            songs.value = result.list.map((item: any) => transformSearchSong(item));
+            songs.value = result.list.map((item: any) => toSong(item));
             total.value = result.songCount || result.total || 0;
         } else {
              total.value = 0;
@@ -336,15 +336,13 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  scroll-padding-bottom: 148px;
 }
 
 .content-wrapper {
   box-sizing: border-box;
-  padding: 20px 30px 148px; /* Reduced vertical padding, kept horizontal for spacing but flexible */
+  /* 底部留白由 MainLayout .page-content 统一处理(播放栏 128px)，这里不再叠加 */
+  padding: 20px 30px;
   width: 100%;
-  /* Removed max-width to allow full width usage as requested */
-  /* margin: 0 auto; */ 
 }
 
 .search-header {

@@ -2,10 +2,10 @@
   <div class="playlist-view">
     <div class="content-wrapper">
       <section class="playlist-hero">
-        <div class="cover" :class="{ editable: isCloudPlaylist }" @click="isCloudPlaylist && openCoverDialog()">
+        <div class="cover" :class="{ editable: isManagedPlaylist }" @click="isManagedPlaylist && openCoverDialog()">
           <img v-if="playlist?.info.img" :src="playlist.info.img" alt="" />
           <Icon v-else :icon="heroIcon" />
-          <button v-if="isCloudPlaylist" class="cover-edit" title="设置封面" @click.stop="openCoverDialog">
+          <button v-if="isManagedPlaylist" class="cover-edit" title="设置封面" @click.stop="openCoverDialog">
             <Icon icon="lucide:image-up" />
           </button>
         </div>
@@ -24,8 +24,19 @@
           </div>
           <div class="hero-meta">
             <span>{{ songCount }} 首歌曲</span>
-            <span v-if="playlist?.info.author">{{ playlist.info.author }}</span>
+            <router-link
+              v-if="showAuthorLink && playlist?.owner"
+              class="author-link"
+              :to="{ name: 'UserProfile', params: { id: playlist.owner.id } }"
+            >
+              {{ playlist.owner.nickname || playlist.owner.username }}
+            </router-link>
+            <span v-else-if="playlist?.info.author">{{ playlist.info.author }}</span>
             <span v-if="isCloudPlaylist">访问 {{ accessCount }} 次</span>
+            <span v-if="isCloudPlaylist && likeCount >= 0">
+              <Icon icon="lucide:heart" style="width:13px;height:13px;vertical-align:-1px" />
+              {{ likeCount }}
+            </span>
           </div>
           <div class="hero-actions">
             <button class="primary-btn" :disabled="songs.length === 0" @click="playAll">
@@ -54,6 +65,16 @@
             </button>
             <button v-if="isManagedPlaylist" class="icon-btn danger" title="删除歌单" @click="deletePlaylist">
               <Icon icon="lucide:trash-2" />
+            </button>
+            <button
+              v-if="showLikeButton"
+              class="icon-btn like-btn"
+              :class="{ liked: isLikedByUser }"
+              :title="isLikedByUser ? '取消喜欢' : '喜欢'"
+              :disabled="likingPlaylist"
+              @click="toggleLikePlaylist"
+            >
+              <Icon :icon="isLikedByUser ? 'lucide:heart' : 'lucide:heart'" />
             </button>
           </div>
         </div>
@@ -217,11 +238,17 @@ const loadMoreTrigger = ref<HTMLElement | null>(null)
 const pageSize = 50
 let loadMoreObserver: IntersectionObserver | null = null
 
+// Like state
+const isLikedByUser = ref(false)
+const likeCount = ref(-1)
+const likingPlaylist = ref(false)
+
 type PublicSong = Partial<Song> & {
-  pic?: string
-  artists?: string
-  interval?: string
-  qualities?: Record<string, string>
+  // 兼容云端 API 可能返回的旧字段名
+  artist?: string
+  picUrl?: string
+  duration?: string
+  types?: Record<string, string>
 }
 
 const routeScope = computed(() => route.params.scope as PlaylistScope | undefined)
@@ -239,6 +266,21 @@ const isManagedPlaylist = computed(() => Boolean(
 ))
 const isCloudPlaylist = computed(() => isManagedPlaylist.value && routeScope.value === 'cloud')
 const isPagedPluginCollection = computed(() => Boolean(isPluginCollection.value && playlist.value))
+const isOwnPlaylist = computed(() => {
+  if (!authStore.state.userInfo?.id || !playlist.value?.owner) return false
+  return authStore.state.userInfo.id === playlist.value.owner.id
+})
+const showAuthorLink = computed(() =>
+  isCloudPlaylist.value &&
+  !isOwnPlaylist.value &&
+  playlist.value?.info.is_public &&
+  playlist.value?.owner
+)
+const showLikeButton = computed(() =>
+  isCloudPlaylist.value &&
+  !isOwnPlaylist.value &&
+  authStore.isLoggedIn
+)
 const targetScope = computed<ManagedPlaylistScope>(() => routeScope.value === 'local' ? 'cloud' : 'local')
 const songCount = computed(() => playlist.value?.total ?? playlist.value?.list.length ?? 0)
 const accessCount = computed(() => Number(playlist.value?.info.visit_count ?? playlist.value?.info.play_count ?? 0) || 0)
@@ -312,20 +354,19 @@ const getErrorMessage = (err: unknown) => {
 
 const normalizePublicSong = (song: PublicSong): Song => ({
   id: String(song.id || ''),
-  hash: song.hash ?? null,
-  picUrl: String(song.picUrl || song.pic || ''),
-  url: String(song.url || ''),
   name: String(song.name || ''),
-  artist: String(song.artist || song.artists || ''),
-  duration: String(song.duration || song.interval || ''),
+  artists: String(song.artists || song.artist || ''),
   source: String(song.source || ''),
-  lyric: song.lyric,
-  quality: song.quality,
+  pic: String(song.pic || song.picUrl || ''),
+  sPic: song.sPic,
+  mPic: song.mPic,
+  interval: String(song.interval || song.duration || '--/--'),
+  qualities: song.qualities || song.types,
+  quality: song.quality ?? null,
   albumId: song.albumId ?? null,
   albumName: song.albumName ?? null,
-  artistIds: song.artistIds ?? null,
-  type: song.type || 'Remote',
-  types: song.types || song.qualities,
+  lyric: song.lyric,
+  url: typeof song.url === 'string' ? song.url : undefined,
 })
 
 const fetchLikedPlaylist = async (): Promise<AppPlaylist> => {
@@ -353,7 +394,7 @@ const fetchLikedPlaylist = async (): Promise<AppPlaylist> => {
       id: userId,
       name: `${displayName}喜欢的音乐`,
       desc: route.name === 'UserLikedPlaylist' ? 'TA喜欢的歌曲' : '收藏的歌曲会在这里汇总。',
-      img: list.find((song) => song.picUrl)?.picUrl || '',
+      img: list.find((song) => song.pic)?.pic || '',
       author: displayName,
       play_count: '',
       visit_count: 0,
@@ -392,6 +433,8 @@ const loadPlaylist = async () => {
   descriptionExpanded.value = false
   currentPage.value = 1
   loadedPage.value = 1
+  isLikedByUser.value = false
+  likeCount.value = -1
   if (isLiked.value) {
     loading.value = true
     try {
@@ -401,6 +444,21 @@ const loadPlaylist = async () => {
       playlist.value = null
       errorMessage.value = getErrorMessage(err)
       console.error('[Playlist] load liked playlist failed:', err)
+    } finally {
+      loading.value = false
+    }
+    return
+  }
+
+  if (isRecent.value) {
+    loading.value = true
+    try {
+      await loadPageMode()
+      playlist.value = await loadRecentSongs()
+    } catch (err: any) {
+      playlist.value = null
+      errorMessage.value = getErrorMessage(err)
+      console.error('[Playlist] load recent plays failed:', err)
     } finally {
       loading.value = false
     }
@@ -430,6 +488,7 @@ const loadPlaylist = async () => {
   try {
     await loadPageMode()
     playlist.value = await playlistStore.get(routeScope.value as ManagedPlaylistScope, routeId.value)
+    if (isCloudPlaylist.value) await loadLikeState()
   } catch (err: any) {
     playlist.value = null
     errorMessage.value = getErrorMessage(err)
@@ -542,6 +601,65 @@ const convertPlaylistMode = async () => {
 const removeSong = async (index: number) => {
   if (!routeScope.value || routeScope.value === 'plugin' || !routeId.value) return
   playlist.value = await playlistStore.removeSong(routeScope.value, routeId.value, displayStartIndex.value + index)
+}
+
+// === Like Feature ===
+
+const loadLikeState = async () => {
+  if (!isCloudPlaylist.value || !routeId.value) {
+    isLikedByUser.value = false
+    likeCount.value = -1
+    return
+  }
+  try {
+    const result = await window.electronAPI.playlist.getLike(routeId.value)
+    isLikedByUser.value = result.liked
+    likeCount.value = result.like_count
+  } catch {
+    isLikedByUser.value = false
+    likeCount.value = -1
+  }
+}
+
+const toggleLikePlaylist = async () => {
+  if (!routeId.value || likingPlaylist.value) return
+  likingPlaylist.value = true
+  try {
+    const result = await window.electronAPI.playlist.toggleLike(routeId.value)
+    isLikedByUser.value = result.liked
+    likeCount.value = result.like_count
+  } catch (err: any) {
+    ElMessage.error(err?.message || '操作失败')
+  } finally {
+    likingPlaylist.value = false
+  }
+}
+
+// === Recent Plays Feature ===
+
+const loadRecentSongs = async (): Promise<AppPlaylist> => {
+  const userId = String(authStore.state.userInfo?.id || '')
+  if (!userId) throw new Error('Not logged in')
+  const songs = await window.electronAPI.user.getRecentSongs(userId)
+  const list = (songs || []).map(normalizePublicSong).filter((s) => s.id && s.source)
+  return {
+    id: userId,
+    scope: 'plugin',
+    source: 'recent',
+    kind: 'playlist',
+    info: {
+      id: userId,
+      name: '最近播放',
+      desc: '最近播放记录会在这里展示。',
+      img: '',
+      author: '',
+      play_count: '',
+      visit_count: 0,
+      is_public: false,
+    },
+    list,
+    total: list.length,
+  }
 }
 
 const changePage = async (page: number) => {
@@ -752,6 +870,34 @@ h1 {
   margin-top: 16px;
   color: var(--color-text-muted);
   font-size: 13px;
+}
+
+.author-link {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 160ms ease;
+}
+
+.author-link:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+
+.icon-btn.like-btn {
+  color: var(--color-text-muted);
+}
+
+.icon-btn.like-btn:hover {
+  color: #ff6b8a;
+}
+
+.icon-btn.like-btn.liked {
+  color: #ff4d6d;
+}
+
+.icon-btn.like-btn.liked svg {
+  fill: currentColor;
 }
 
 .hero-actions {
