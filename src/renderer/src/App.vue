@@ -2,11 +2,11 @@
   <MainLayout />
   <FullScreenPlayer />
   <LoginDialog v-model:visible="showLoginDialog" />
-  <Settings v-if="showSettings" @close="showSettings = false" />
+  <Settings v-show="settingsVisible" v-if="showSettings" @close="showSettings = false" />
 </template>
 
 <script setup lang="ts">
-import { ref, provide, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, provide, onMounted, onBeforeUnmount } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import MainLayout from './layout/MainLayout.vue';
 import Settings from './components/Settings.vue';
@@ -24,9 +24,27 @@ const playlistsStore = usePlaylistsStore();
 const playerStore = usePlayerStore();
 const together = useListenTogetherStore();
 
+// 全屏播放时隐藏设置页，避免底层 -webkit-app-region 干扰播放页拖拽
+// 延迟隐藏以等待播放页入场动画完成 (transform 0.46s)
+const settingsVisible = ref(true);
+let settingsHideTimer: number | undefined;
+
+watch(() => playerStore.isPlayerFullScreen, (fullscreen) => {
+  if (fullscreen) {
+    clearTimeout(settingsHideTimer);
+    settingsHideTimer = window.setTimeout(() => {
+      settingsVisible.value = false;
+    }, 500);
+  } else {
+    clearTimeout(settingsHideTimer);
+    settingsVisible.value = true;
+  }
+});
+
 // Provide to child components
 provide('openSettings', () => { showSettings.value = true; });
 provide('openLoginDialog', () => { showLoginDialog.value = true; });
+provide('isSettingsOpen', showSettings);
 
 const isTypingTarget = (target: EventTarget | null) => {
   const element = target as HTMLElement | null;
@@ -119,6 +137,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalShortcut);
   window.removeEventListener('focus', checkClipboardInvite);
   document.removeEventListener('visibilitychange', onVisibilityChange);
+  clearTimeout(settingsHideTimer);
 });
 </script>
 

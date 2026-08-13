@@ -3,12 +3,14 @@
   "private": true,
   "author": "lqtmcstudio",
   "description": "QZMusic - 简洁、美观、拓展性强的音乐播放器",
-  "version": "1.0.2",
+  "homepage": "https://github.com/lqtmcstudio/QZMusic_PC",
+  "version": "1.0.3",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "electron:build": "electron-vite build && electron-builder --win --x64 --config --publish never"
+    "electron:build": "electron-vite build && electron-builder --win --x64 --config --publish never",
+    "electron:build:linux": "electron-vite build && electron-builder --linux --x64 --config --publish never"
   },
   "dependencies": {
     "@applemusic-like-lyrics/core": "file:amll-local/packages/core",
@@ -62,7 +64,46 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "public/icon.ico"
+      "icon": "public/icon.ico",
+      "extraResources": [
+        {
+          "from": "core/qzplayer.exe",
+          "to": "core/qzplayer.exe"
+        },
+        {
+          "from": "core/libfftw3f-3.dll",
+          "to": "core/libfftw3f-3.dll"
+        },
+        {
+          "from": "native/taglib_reader/build/taglib_reader_cli.exe",
+          "to": "native/taglib_reader_cli.exe"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "public/icon.png",
+      "category": "Audio",
+      "executableName": "qzmusic",
+      "maintainer": "lqtmcstudio <lqtmcstudio@126.com>",
+      "vendor": "lqtmcstudio",
+      "extraResources": [
+        {
+          "from": "core/qzplayer",
+          "to": "core/qzplayer"
+        },
+        {
+          "from": "core/libfftw3f.so.3",
+          "to": "core/libfftw3f.so.3"
+        },
+        {
+          "from": "native/taglib_reader/build/taglib_reader_cli",
+          "to": "native/taglib_reader_cli"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -71,12 +112,8 @@
     },
     "extraResources": [
       {
-        "from": "core/",
-        "to": "core/"
-      },
-      {
-        "from": "native/taglib_reader/build/taglib_reader_cli.exe",
-        "to": "native/taglib_reader_cli.exe"
+        "from": "core/ffmpeg_license/",
+        "to": "core/ffmpeg_license/"
       }
     ]
   }

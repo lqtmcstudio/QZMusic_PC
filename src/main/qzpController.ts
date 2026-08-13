@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { Socket } from 'node:net';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';
 
@@ -35,15 +36,25 @@ export class QzpController extends EventEmitter {
         if (process.platform === 'win32') {
             return '\\\\.\\pipe\\qzplayer';
         }
-        return '/tmp/qzmusic_mpv_socket';
+        return '/tmp/qzplayer.sock';
     }
 
     private getCorePath(): string {
         const appRoot = process.env.APP_ROOT || process.cwd();
+        const binaryName = process.platform === 'win32' ? 'qzplayer.exe' : 'qzplayer';
         if (app.isPackaged) {
-            return path.join(process.resourcesPath, 'core', 'qzplayer.exe');
+            return path.join(process.resourcesPath, 'core', binaryName);
         }
-        return path.join(appRoot, 'core', 'qzplayer.exe');
+        return path.join(appRoot, 'core', binaryName);
+    }
+
+    private isExecutable(filePath: string): boolean {
+        try {
+            fs.accessSync(filePath, fs.constants.X_OK);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     start(): void {
@@ -56,9 +67,36 @@ export class QzpController extends EventEmitter {
         console.log('Starting QZPlayer from:', playerPath);
 
         try {
-            const child = spawn(playerPath, [], {
+            const env: NodeJS.ProcessEnv = { ...process.env };
+            let spawnPath = playerPath;
+            if (process.platform !== 'win32') {
+                // 让动态链接器在二进制同级目录查找自带共享库 (如 libfftw3f.so.3)
+                const coreDir = path.dirname(playerPath);
+                env.LD_LIBRARY_PATH = coreDir + (process.env.LD_LIBRARY_PATH ? path.delimiter + process.env.LD_LIBRARY_PATH : '');
+
+                // git / Windows 文件系统可能丢失可执行位, 打包到 Linux 后需要补上
+                if (!this.isExecutable(spawnPath)) {
+                    try { fs.chmodSync(spawnPath, 0o755); } catch { /* ignore */ }
+                }
+                if (!this.isExecutable(spawnPath)) {
+                    // AppImage 只读挂载 / deb 安装到 root 目录时无 chmod 权限, 复制到用户数据目录再执行
+                    const altPath = path.join(app.getPath('userData'), 'bin', path.basename(spawnPath));
+                    try {
+                        fs.mkdirSync(path.dirname(altPath), { recursive: true });
+                        fs.copyFileSync(spawnPath, altPath);
+                        fs.chmodSync(altPath, 0o755);
+                        spawnPath = altPath;
+                        console.log('QZPlayer copied to writable path:', altPath);
+                    } catch (err) {
+                        console.warn('Failed to prepare writable QZPlayer:', err);
+                    }
+                }
+            }
+
+            const child = spawn(spawnPath, [], {
                 stdio: 'ignore',
                 windowsHide: true,
+                env,
             });
             this.process = child;
 

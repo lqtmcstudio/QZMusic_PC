@@ -30,7 +30,7 @@ export interface PlaylistInfo {
     author?: string
     play_count?: string
     visit_count?: number
-    like_count?: number
+    collection_count?: number
     is_public?: boolean
 }
 
@@ -138,7 +138,7 @@ function normalizeCloudPlaylist(raw: any): AppPlaylist {
             author: info?.author || '',
             play_count: info?.play_count || '',
             visit_count: Number(info?.visit_count ?? info?.play_count ?? 0) || 0,
-            like_count: Number(info?.like_count ?? 0) || 0,
+            collection_count: Number(info?.collection_count ?? info?.like_count ?? 0) || 0,
             is_public: Boolean(info?.is_public ?? info?.public ?? false),
         },
         list,
@@ -269,7 +269,7 @@ export async function listPublicPlaylists(
     const query = new URLSearchParams({
         page: String(Math.max(1, Number(page) || 1)),
         limit: String(Math.max(1, Math.min(50, Number(limit) || 50))),
-        sort: ['visit', 'name', 'total', 'like'].includes(sort) ? sort : 'visit',
+        sort: ['visit', 'name', 'total', 'collection'].includes(sort) ? sort : 'visit',
     })
     if (search.trim()) query.set('search', search.trim())
     const raw = await qzFetch(`/playlist/public?${query.toString()}`)
@@ -283,9 +283,9 @@ export async function listPublicPlaylists(
     }
 }
 
-export async function getPlaylist(scope: PlaylistScope, id: string): Promise<AppPlaylist> {
+export async function getPlaylist(scope: PlaylistScope, id: string, recordVisit = true): Promise<AppPlaylist> {
     if (scope === 'local') return readLocalPlaylist(id)
-    const raw = await qzFetch(`/playlist/${encodeURIComponent(id)}`)
+    const raw = await qzFetch(`/playlist/${encodeURIComponent(id)}?record_visit=${recordVisit}`)
     return normalizeCloudPlaylist(raw)
 }
 

@@ -88,7 +88,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     playlist: {
         list: () => ipcRenderer.invoke('playlist:list'),
         publicList: (search = '', sort = 'visit', page = 1, limit = 50) => ipcRenderer.invoke('playlist:publicList', search, sort, page, limit),
-        get: (scope: 'local' | 'cloud', id: string) => ipcRenderer.invoke('playlist:get', scope, id),
+        get: (scope: 'local' | 'cloud', id: string, recordVisit = true) => ipcRenderer.invoke('playlist:get', scope, id, recordVisit),
         create: (scope: 'local' | 'cloud', data: { name: string; desc?: string; is_public?: boolean }) => ipcRenderer.invoke('playlist:create', scope, data),
         update: (scope: 'local' | 'cloud', id: string, info: any) => ipcRenderer.invoke('playlist:update', scope, id, info),
         delete: (scope: 'local' | 'cloud', id: string) => ipcRenderer.invoke('playlist:delete', scope, id),
@@ -98,8 +98,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         import: () => ipcRenderer.invoke('playlist:import'),
         convertScope: (scope: 'local' | 'cloud', id: string, targetScope: 'local' | 'cloud') => ipcRenderer.invoke('playlist:convertScope', scope, id, targetScope),
         copyToLocal: (scope: 'local' | 'cloud', id: string) => ipcRenderer.invoke('playlist:copyToLocal', scope, id),
-        toggleLike: (playlistId: string) => ipcRenderer.invoke('playlist:toggleLike', playlistId),
-        getLike: (playlistId: string) => ipcRenderer.invoke('playlist:getLike', playlistId),
+        getFavorites: () => ipcRenderer.invoke('playlist:getFavorites'),
+        collect: (playlistId: string, source = '') => ipcRenderer.invoke('playlist:collect', playlistId, source),
+        uncollect: (playlistId: string, source = '') => ipcRenderer.invoke('playlist:uncollect', playlistId, source),
     },
 
     image: {

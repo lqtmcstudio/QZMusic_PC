@@ -15,6 +15,52 @@
 | **QZ Plugins** | 高拓展性的插件运行环境   |
 | **AMLL**       | 背景渲染             |
 | **QZPlayer**   | 基于WASAPI和FFmpeg的轻量级模块化音频播放器,使用C编写,IPC与主程序通信 |
+
+## 🐧 Linux (amd64) 支持
+
+```bash
+# 安装 TagLib 开发库 (用于编译本地音乐标签扫描器)
+# Debian / Ubuntu
+sudo apt install -y libtag1-dev
+# Fedora
+sudo dnf install -y taglib-devel
+# Arch Linux
+sudo pacman -S --needed taglib
+
+# 编译本地音乐标签扫描器
+bash native/taglib_reader/build.sh
+
+# 确保播放核心二进制有可执行位 (Windows 下提交的二进制会丢失该位)
+chmod +x core/qzplayer native/taglib_reader/build/taglib_reader_cli
+
+# 安装依赖并打包
+bun install
+bun run electron:build:linux
+# 产物: release/*.AppImage 与 release/*.deb
+```
+
+### 运行时依赖
+
+安装/运行 Linux 版时需要以下系统库（`libfftw3f.so.3` 已随安装包内置，无需手动安装）：
+
+| 依赖 | Debian / Ubuntu | 说明 |
+|------|----------------|------|
+| ALSA | `libasound2` | 音频输出（必需） |
+| TagLib | `libtag1` | 本地音乐标签扫描（不使用本地音乐可不装） |
+| zlib | `zlib1g` | 通常已预装 |
+| FFTW（单精度） | `libfftw3-3` | 已内置，无需安装 |
+
+```bash
+# Debian / Ubuntu
+sudo apt install -y libasound2 libtag1
+
+# Fedora
+sudo dnf install -y alsa-lib taglib
+
+# Arch Linux
+sudo pacman -S --needed alsa-lib taglib
+```
+
 ## 📖 项目说明
 
 本项目为 **Vue + Electron** 的学习实践作品，旨在完善QZ Music的多平台生态。

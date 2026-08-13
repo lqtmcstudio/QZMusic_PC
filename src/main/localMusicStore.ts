@@ -54,12 +54,18 @@ function getLibraryPath(): string {
 }
 
 function getReaderExe(): string {
+    const binaryName = process.platform === 'win32' ? 'taglib_reader_cli.exe' : 'taglib_reader_cli';
     const candidates = [
-        path.join(process.env.APP_ROOT || '', 'native', 'taglib_reader', 'build', 'taglib_reader_cli.exe'),
-        path.join(process.resourcesPath || '', 'native', 'taglib_reader_cli.exe'),
+        path.join(process.env.APP_ROOT || '', 'native', 'taglib_reader', 'build', binaryName),
+        path.join(process.resourcesPath || '', 'native', binaryName),
     ]
     const target = candidates.find((candidate) => candidate && fs.existsSync(candidate))
-    if (!target) throw new Error('TagLib reader executable not found')
+    if (!target) throw new Error(`TagLib reader executable not found (${binaryName})`)
+    if (process.platform !== 'win32') {
+        try {
+            fs.chmodSync(target, 0o755)
+        } catch {}
+    }
     return target
 }
 
@@ -68,14 +74,22 @@ function getArtworkDir(): string {
 }
 
 function getDefaultRoots(): string[] {
-    const username = path.basename(app.getPath('home'))
     const roots: string[] = []
-    for (let code = 67; code <= 90; code++) {
-        const drive = `${String.fromCharCode(code)}:\\`
-        if (!fs.existsSync(drive)) continue
-        const userRoot = path.join(drive, 'Users', username)
+    if (process.platform === 'win32') {
+        const username = path.basename(app.getPath('home'))
+        for (let code = 67; code <= 90; code++) {
+            const drive = `${String.fromCharCode(code)}:\\`
+            if (!fs.existsSync(drive)) continue
+            const userRoot = path.join(drive, 'Users', username)
+            for (const dirName of ['Music', '音乐', 'Downloads', '下载']) {
+                const candidate = path.join(userRoot, dirName)
+                if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) roots.push(candidate)
+            }
+        }
+    } else {
+        const home = app.getPath('home')
         for (const dirName of ['Music', '音乐', 'Downloads', '下载']) {
-            const candidate = path.join(userRoot, dirName)
+            const candidate = path.join(home, dirName)
             if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) roots.push(candidate)
         }
     }

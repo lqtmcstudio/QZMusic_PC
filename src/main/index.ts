@@ -31,8 +31,9 @@ import {
     uploadImage,
     getRecentSongs,
     addRecentSong,
-    togglePlaylistLike,
-    getPlaylistLike,
+    getFavoritePlaylists,
+    collectPlaylist,
+    uncollectPlaylist,
     toggleUserFollow,
     getUserSubscriptions,
     type AuthCallbackPayload,
@@ -375,12 +376,13 @@ ipcMain.handle('user:addRecentSong', (_event, userId: string, song: any) => {
     return addRecentSong(String(userId || ''), song || {})
 })
 
-// Playlist Likes
-ipcMain.handle('playlist:toggleLike', (_event, playlistId: string) => {
-    return togglePlaylistLike(String(playlistId || ''))
+// Favorite Playlists
+ipcMain.handle('playlist:getFavorites', () => getFavoritePlaylists())
+ipcMain.handle('playlist:collect', (_event, playlistId: string, source = '') => {
+    return collectPlaylist(String(playlistId || ''), String(source || ''))
 })
-ipcMain.handle('playlist:getLike', (_event, playlistId: string) => {
-    return getPlaylistLike(String(playlistId || ''))
+ipcMain.handle('playlist:uncollect', (_event, playlistId: string, source = '') => {
+    return uncollectPlaylist(String(playlistId || ''), String(source || ''))
 })
 
 // User Follow
@@ -421,8 +423,8 @@ ipcMain.handle('playlist:publicList', (_event, search = '', sort = 'visit', page
     return listPublicPlaylists(String(search || ''), String(sort || 'visit'), Number(page) || 1, Number(limit) || 50)
 })
 
-ipcMain.handle('playlist:get', (_event, scope: PlaylistScope, id: string) => {
-    return getPlaylist(scope, id)
+ipcMain.handle('playlist:get', (_event, scope: PlaylistScope, id: string, recordVisit = true) => {
+    return getPlaylist(scope, id, Boolean(recordVisit))
 })
 
 ipcMain.handle('playlist:create', (_event, scope: PlaylistScope, data: { name: string; desc?: string; is_public?: boolean }) => {

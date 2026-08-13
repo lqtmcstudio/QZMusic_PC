@@ -276,6 +276,11 @@ export const usePlayerStore = defineStore('player', () => {
             return;
         }
         loadingSongKey = songKey;
+        // Reset retry count only when switching to a genuinely different song
+        const prevSongKey = currentSong.value ? `${currentSong.value.source}:${currentSong.value.id}` : null;
+        if (prevSongKey !== songKey) {
+            currentSongRetryCount.value = 0;
+        }
         try {
             console.log(song);
             currentSong.value = song;
@@ -314,7 +319,6 @@ export const usePlayerStore = defineStore('player', () => {
                         syncDummyAudioState(false);
                     }
                     song.url = playUrl;
-                    currentSongRetryCount.value = 0;
                     // Record to recent plays (fire-and-forget)
                     recordRecentSong(song);
                     playErrorCount.value = 0;

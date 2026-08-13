@@ -395,16 +395,57 @@ export async function addRecentSong(userId: string, song: any): Promise<any> {
     })
 }
 
-// === Playlist Likes ===
+// === Favorite Playlists ===
 
-export async function togglePlaylistLike(playlistId: string): Promise<{ status: string; liked: boolean; like_count: number }> {
-    return qzFetch(`/playlist/${encodeURIComponent(playlistId)}/like`, {
+export interface FavoritePlaylistRef {
+    id: string
+    source: string
+}
+
+export interface FavoritePlaylistStatus {
+    status: string
+    collected: boolean
+    collection_count?: number | null
+    message?: string | null
+}
+
+function normalizeFavoritePlaylistSource(source: string): string {
+    const normalized = String(source || '').trim()
+    return normalized === 'cloud' ? '' : normalized
+}
+
+export async function getFavoritePlaylists(userId?: string): Promise<FavoritePlaylistRef[]> {
+    const state = loadAuthState()
+    const targetUserId = userId || state.userInfo?.id
+    if (!targetUserId) throw new Error('Not logged in')
+    const result = await qzFetch(`/user/${encodeURIComponent(targetUserId)}/fav/playlists`)
+    return Array.isArray(result) ? result : []
+}
+
+export async function collectPlaylist(playlistId: string, source = ''): Promise<FavoritePlaylistStatus> {
+    const state = loadAuthState()
+    const userId = state.userInfo?.id
+    if (!userId) throw new Error('Not logged in')
+    return qzFetch(`/user/${encodeURIComponent(userId)}/fav/playlists`, {
         method: 'POST',
+        body: JSON.stringify({
+            id: String(playlistId || '').trim(),
+            source: normalizeFavoritePlaylistSource(source),
+        }),
     })
 }
 
-export async function getPlaylistLike(playlistId: string): Promise<{ status: string; liked: boolean; like_count: number }> {
-    return qzFetch(`/playlist/${encodeURIComponent(playlistId)}/like`)
+export async function uncollectPlaylist(playlistId: string, source = ''): Promise<FavoritePlaylistStatus> {
+    const state = loadAuthState()
+    const userId = state.userInfo?.id
+    if (!userId) throw new Error('Not logged in')
+    const query = new URLSearchParams({
+        id: String(playlistId || '').trim(),
+        source: normalizeFavoritePlaylistSource(source),
+    })
+    return qzFetch(`/user/${encodeURIComponent(userId)}/fav/playlists?${query.toString()}`, {
+        method: 'DELETE',
+    })
 }
 
 // === User Follow ===

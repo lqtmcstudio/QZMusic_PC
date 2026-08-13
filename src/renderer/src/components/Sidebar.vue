@@ -23,6 +23,10 @@
         <Icon icon="lucide:heart" />
         <span>我喜欢的</span>
       </router-link>
+      <router-link to="/favorite-playlists" class="nav-item" active-class="active">
+        <Icon icon="lucide:bookmark" />
+        <span>收藏歌单</span>
+      </router-link>
       <router-link to="/recent" class="nav-item" active-class="active">
         <Icon icon="lucide:clock-3" />
         <span>最近播放</span>

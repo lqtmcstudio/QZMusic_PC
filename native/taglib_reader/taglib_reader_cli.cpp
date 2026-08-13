@@ -6,7 +6,12 @@
 #include <string>
 #include <vector>
 
+#include <cctype>
+#include <cstdint>
+
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 #include <taglib/attachedpictureframe.h>
 #include <taglib/fileref.h>
@@ -31,6 +36,7 @@ namespace {
 
 constexpr unsigned int kMaxCoverBytes = 8 * 1024 * 1024;
 
+#ifdef _WIN32
 std::string WideToUtf8(const std::wstring &value) {
   if (value.empty()) return "";
   const int size = WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
@@ -47,6 +53,25 @@ std::wstring Utf8ToWide(const std::string &value) {
   std::wstring result(size, L'\0');
   MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), result.data(), size);
   return result;
+}
+#endif
+
+// 将文件路径转成 UTF-8 字符串 (Windows 底层是 UTF-16, Unix 本身就是 UTF-8)
+std::string PathToUtf8(const fs::path &value) {
+#ifdef _WIN32
+  return WideToUtf8(value.wstring());
+#else
+  return value.string();
+#endif
+}
+
+// 从 UTF-8 字符串构造文件路径
+fs::path PathFromUtf8(const std::string &value) {
+#ifdef _WIN32
+  return fs::path(Utf8ToWide(value));
+#else
+  return fs::path(value);
+#endif
 }
 
 std::string ToUtf8(const TagLib::String &value) {
@@ -131,13 +156,13 @@ std::string WriteCoverFile(
   fs::create_directories(artworkDir, ec);
   if (ec) return "";
 
-  const auto id = HexHash(WideToUtf8(filePath.wstring()));
-  const auto outPath = artworkDir / fs::path(Utf8ToWide(id + CoverExtension(mime)));
+  const auto id = HexHash(PathToUtf8(filePath));
+  const auto outPath = artworkDir / fs::path(id + CoverExtension(mime));
   std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
   if (!out) return "";
   out.write(cover.data(), cover.size());
   if (!out) return "";
-  return WideToUtf8(outPath.wstring());
+  return PathToUtf8(outPath);
 }
 
 std::string Base64Encode(const TagLib::ByteVector &data) {
@@ -282,20 +307,23 @@ std::string ReadLyrics(TagLib::File *file) {
 }
 
 bool IsAudioPath(const fs::path &file) {
-  const auto ext = file.extension().wstring();
-  const std::wstring lower = [&]() {
-    std::wstring out = ext;
-    for (auto &ch : out) ch = static_cast<wchar_t>(towlower(ch));
-    return out;
-  }();
-  return lower == L".mp3" || lower == L".flac" || lower == L".m4a" || lower == L".mp4" ||
-         lower == L".aac" || lower == L".ogg" || lower == L".opus" || lower == L".wav" ||
-         lower == L".aiff" || lower == L".aif" || lower == L".ape" || lower == L".wv";
+  std::string ext = file.extension().string();
+  for (auto &ch : ext) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  return ext == ".mp3" || ext == ".flac" || ext == ".m4a" || ext == ".mp4" ||
+         ext == ".aac" || ext == ".ogg" || ext == ".opus" || ext == ".wav" ||
+         ext == ".aiff" || ext == ".aif" || ext == ".ape" || ext == ".wv";
+}
+
+TagLib::FileRef OpenFileRef(const fs::path &filePath) {
+#ifdef _WIN32
+  return TagLib::FileRef(TagLib::FileName(filePath.wstring().c_str()), true, TagLib::AudioProperties::Average);
+#else
+  return TagLib::FileRef(TagLib::FileName(filePath.c_str()), true, TagLib::AudioProperties::Average);
+#endif
 }
 
 std::string ReadFileJson(const fs::path &filePath, const fs::path &artworkDir = {}) {
-  const std::wstring nativePath = filePath.wstring();
-  TagLib::FileRef fileRef(TagLib::FileName(nativePath.c_str()), true, TagLib::AudioProperties::Average);
+  TagLib::FileRef fileRef = OpenFileRef(filePath);
   if (fileRef.isNull() || !fileRef.file()) {
     throw std::runtime_error("Unsupported or unreadable audio file");
   }
@@ -315,7 +343,7 @@ std::string ReadFileJson(const fs::path &filePath, const fs::path &artworkDir = 
 
   std::ostringstream json;
   json << "{";
-  json << "\"path\":" << Q(WideToUtf8(filePath.wstring())) << ",";
+  json << "\"path\":" << Q(PathToUtf8(filePath)) << ",";
   json << "\"title\":" << Q(tag ? ToUtf8(tag->title()) : "") << ",";
   json << "\"artist\":" << Q(tag ? ToUtf8(tag->artist()) : "") << ",";
   json << "\"album\":" << Q(tag ? ToUtf8(tag->album()) : "") << ",";
@@ -352,31 +380,28 @@ std::vector<fs::path> CollectAudioFiles(const std::vector<fs::path> &roots) {
   return files;
 }
 
-}  // namespace
-
-int wmain(int argc, wchar_t **argv) {
-  SetConsoleOutputCP(CP_UTF8);
-  if (argc < 3) {
-    std::cerr << "Usage: taglib_reader_cli.exe read <file> | scan [--artwork-dir <dir>] <dir...>\n";
+int run(const std::vector<std::string> &args) {
+  if (args.size() < 3) {
+    std::cerr << "Usage: taglib_reader_cli read <file> | scan [--artwork-dir <dir>] <dir...>\n";
     return 2;
   }
 
   try {
-    const std::wstring mode = argv[1];
-    if (mode == L"read") {
-      std::cout << ReadFileJson(fs::path(argv[2]));
+    const std::string mode = args[1];
+    if (mode == "read") {
+      std::cout << ReadFileJson(PathFromUtf8(args[2]));
       return 0;
     }
 
-    if (mode == L"scan") {
+    if (mode == "scan") {
       fs::path artworkDir;
       std::vector<fs::path> roots;
       int startIndex = 2;
-      if (argc >= 5 && std::wstring(argv[2]) == L"--artwork-dir") {
-        artworkDir = fs::path(argv[3]);
+      if (args.size() >= 5 && args[2] == "--artwork-dir") {
+        artworkDir = PathFromUtf8(args[3]);
         startIndex = 4;
       }
-      for (int i = startIndex; i < argc; i++) roots.emplace_back(argv[i]);
+      for (size_t i = static_cast<size_t>(startIndex); i < args.size(); i++) roots.emplace_back(PathFromUtf8(args[i]));
       const auto files = CollectAudioFiles(roots);
 
       std::cout << "{\"songs\":[";
@@ -387,7 +412,7 @@ int wmain(int argc, wchar_t **argv) {
           std::cout << ReadFileJson(file, artworkDir);
           first = false;
         } catch (const std::exception &error) {
-          std::cerr << "Failed to read " << WideToUtf8(file.wstring()) << ": " << error.what() << "\n";
+          std::cerr << "Failed to read " << PathToUtf8(file) << ": " << error.what() << "\n";
         }
       }
       std::cout << "]}";
@@ -401,3 +426,22 @@ int wmain(int argc, wchar_t **argv) {
     return 1;
   }
 }
+
+}  // namespace
+
+#ifdef _WIN32
+int wmain(int argc, wchar_t **argv) {
+  SetConsoleOutputCP(CP_UTF8);
+  std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; i++) args.push_back(WideToUtf8(argv[i]));
+  return run(args);
+}
+#else
+int main(int argc, char **argv) {
+  std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; i++) args.push_back(argv[i]);
+  return run(args);
+}
+#endif

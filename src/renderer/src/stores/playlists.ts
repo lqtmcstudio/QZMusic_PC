@@ -15,7 +15,7 @@ export interface PlaylistInfo {
   author?: string
   play_count?: string
   visit_count?: number
-  like_count?: number
+  collection_count?: number
   is_public?: boolean
 }
 

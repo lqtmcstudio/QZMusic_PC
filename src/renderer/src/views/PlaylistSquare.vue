@@ -16,9 +16,9 @@
               <Icon icon="lucide:trending-up" />
               访问量
             </button>
-            <button :class="{ active: sort === 'like' }" @click="setSort('like')">
-              <Icon icon="lucide:heart" />
-              喜欢
+            <button :class="{ active: sort === 'collection' }" @click="setSort('collection')">
+              <Icon icon="lucide:bookmark" />
+              收藏
             </button>
             <button :class="{ active: sort === 'total' }" @click="setSort('total')">
               <Icon icon="lucide:list-music" />
@@ -66,8 +66,8 @@
                 {{ Number(playlist.info.visit_count || playlist.info.play_count || 0) || 0 }}
               </span>
               <span>
-                <Icon icon="lucide:heart" />
-                {{ Number(playlist.info.like_count || 0) || 0 }}
+                <Icon icon="lucide:bookmark" />
+                {{ Number(playlist.info.collection_count || 0) || 0 }}
               </span>
               <span>
                 <Icon icon="lucide:music" />
@@ -103,7 +103,7 @@ import { usePlaylistsStore, type AppPlaylist } from '../stores/playlists'
 const router = useRouter()
 const playlistStore = usePlaylistsStore()
 const query = ref('')
-const sort = ref<'visit' | 'like' | 'total' | 'name'>('visit')
+const sort = ref<'visit' | 'collection' | 'total' | 'name'>('visit')
 const playlists = ref<AppPlaylist[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -117,7 +117,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize))
 const sortLabel = computed(() => {
   if (sort.value === 'total') return '歌曲数'
   if (sort.value === 'name') return '名称'
-  if (sort.value === 'like') return '喜欢数'
+  if (sort.value === 'collection') return '收藏数'
   return '访问量'
 })
 
@@ -152,7 +152,7 @@ watch(query, () => {
 
 watch(page, () => scheduleLoad(120))
 
-const setSort = (nextSort: 'visit' | 'like' | 'total' | 'name') => {
+const setSort = (nextSort: 'visit' | 'collection' | 'total' | 'name') => {
   if (sort.value === nextSort) return
   sort.value = nextSort
   page.value = 1

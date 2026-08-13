@@ -1,5 +1,5 @@
 <template>
-  <header class="topbar">
+  <header class="topbar" :class="{ 'no-drag': isDragDisabled }">
     <div class="left-controls">
       <div class="nav-group">
         <button class="nav-btn" @click="goBack" title="返回">
@@ -78,18 +78,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useAuthStore } from '../stores/auth'
+import { usePlayerStore } from '../stores/player'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const playerStore = usePlayerStore()
 const isMaximized = ref(false)
 const searchQuery = ref('')
 const showUserMenu = ref(false)
 const ignoreNextUserClick = ref(false)
 let userPressTimer: number | undefined
+
+// Disable drag region when overlays are active to prevent conflicts
+const settingsOpen = inject<import('vue').Ref<boolean>>('isSettingsOpen', ref(false))
+const isDragDisabled = computed(() => playerStore.isPlayerFullScreen || settingsOpen.value)
 
 const goBack = () => router.back()
 const goForward = () => router.forward()
@@ -203,6 +209,10 @@ onUnmounted(() => {
   -webkit-app-region: drag;
   user-select: none;
   backdrop-filter: none;
+}
+
+.topbar.no-drag {
+  -webkit-app-region: no-drag;
 }
 
 .left-controls,

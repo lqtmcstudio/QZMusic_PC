@@ -2,10 +2,10 @@
   <div class="playlist-view">
     <div class="content-wrapper">
       <section class="playlist-hero">
-        <div class="cover" :class="{ editable: isManagedPlaylist }" @click="isManagedPlaylist && openCoverDialog()">
+        <div class="cover" :class="{ editable: isEditablePlaylist }" @click="isEditablePlaylist && openCoverDialog()">
           <img v-if="playlist?.info.img" :src="playlist.info.img" alt="" />
           <Icon v-else :icon="heroIcon" />
-          <button v-if="isManagedPlaylist" class="cover-edit" title="设置封面" @click.stop="openCoverDialog">
+          <button v-if="isEditablePlaylist" class="cover-edit" title="设置封面" @click.stop="openCoverDialog">
             <Icon icon="lucide:image-up" />
           </button>
         </div>
@@ -33,9 +33,9 @@
             </router-link>
             <span v-else-if="playlist?.info.author">{{ playlist.info.author }}</span>
             <span v-if="isCloudPlaylist">访问 {{ accessCount }} 次</span>
-            <span v-if="isCloudPlaylist && likeCount >= 0">
-              <Icon icon="lucide:heart" style="width:13px;height:13px;vertical-align:-1px" />
-              {{ likeCount }}
+            <span v-if="isCloudPlaylist && collectionCount >= 0">
+              <Icon icon="lucide:bookmark" style="width:13px;height:13px;vertical-align:-1px" />
+              {{ collectionCount }}
             </span>
           </div>
           <div class="hero-actions">
@@ -43,7 +43,7 @@
               <Icon icon="lucide:play" />
               播放全部
             </button>
-            <button v-if="isManagedPlaylist" class="soft-btn" @click="openEditDialog">
+            <button v-if="isEditablePlaylist" class="soft-btn" @click="openEditDialog">
               <Icon icon="lucide:pencil" />
               编辑
             </button>
@@ -55,26 +55,26 @@
               <Icon icon="lucide:hard-drive-download" />
               另存本地
             </button>
-            <button v-if="isCloudPlaylist" class="soft-btn" @click="openCoverDialog">
+            <button v-if="isCloudPlaylist && isEditablePlaylist" class="soft-btn" @click="openCoverDialog">
               <Icon icon="lucide:image-up" />
               封面
             </button>
-            <button v-else-if="isManagedPlaylist" class="soft-btn" @click="convertPlaylistMode">
+            <button v-else-if="isEditablePlaylist" class="soft-btn" @click="convertPlaylistMode">
               <Icon :icon="targetScope === 'cloud' ? 'lucide:cloud-upload' : 'lucide:hard-drive-download'" />
               {{ targetScope === 'cloud' ? '转为云端' : '转为本地' }}
             </button>
-            <button v-if="isManagedPlaylist" class="icon-btn danger" title="删除歌单" @click="deletePlaylist">
+            <button v-if="isEditablePlaylist" class="icon-btn danger" title="删除歌单" @click="deletePlaylist">
               <Icon icon="lucide:trash-2" />
             </button>
             <button
-              v-if="showLikeButton"
-              class="icon-btn like-btn"
-              :class="{ liked: isLikedByUser }"
-              :title="isLikedByUser ? '取消喜欢' : '喜欢'"
-              :disabled="likingPlaylist"
-              @click="toggleLikePlaylist"
+              v-if="showCollectButton"
+              class="icon-btn collect-btn"
+              :class="{ collected: isCollectedByUser }"
+              :title="isCollectedByUser ? '取消收藏' : '收藏'"
+              :disabled="collectingPlaylist"
+              @click="toggleCollectPlaylist"
             >
-              <Icon :icon="isLikedByUser ? 'lucide:heart' : 'lucide:heart'" />
+              <Icon icon="lucide:bookmark" />
             </button>
           </div>
         </div>
@@ -117,7 +117,7 @@
             :key="`${song.source}:${song.id}:${index}`"
             :song="song"
             :display-index="displayStartIndex + index + 1"
-            :removable="isManagedPlaylist"
+            :removable="isEditablePlaylist"
             reserve-action
             @play="playSong(index)"
             @remove="removeSong(index)"
@@ -238,10 +238,10 @@ const loadMoreTrigger = ref<HTMLElement | null>(null)
 const pageSize = 50
 let loadMoreObserver: IntersectionObserver | null = null
 
-// Like state
-const isLikedByUser = ref(false)
-const likeCount = ref(-1)
-const likingPlaylist = ref(false)
+// Playlist collection state
+const isCollectedByUser = ref(false)
+const collectionCount = ref(-1)
+const collectingPlaylist = ref(false)
 
 type PublicSong = Partial<Song> & {
   // 兼容云端 API 可能返回的旧字段名
@@ -270,17 +270,20 @@ const isOwnPlaylist = computed(() => {
   if (!authStore.state.userInfo?.id || !playlist.value?.owner) return false
   return authStore.state.userInfo.id === playlist.value.owner.id
 })
+const isEditablePlaylist = computed(() =>
+  routeScope.value === 'local' || (isCloudPlaylist.value && isOwnPlaylist.value)
+)
 const showAuthorLink = computed(() =>
   isCloudPlaylist.value &&
   !isOwnPlaylist.value &&
   playlist.value?.info.is_public &&
   playlist.value?.owner
 )
-const showLikeButton = computed(() =>
-  isCloudPlaylist.value &&
-  !isOwnPlaylist.value &&
-  authStore.isLoggedIn
-)
+const collectionSource = computed(() => isCloudPlaylist.value ? '' : String(routePluginId.value || ''))
+const showCollectButton = computed(() => authStore.isLoggedIn && Boolean(
+  (isCloudPlaylist.value && routeId.value) ||
+  (isPluginCollection.value && routeKind.value === 'playlist' && routePluginId.value && routeId.value)
+))
 const targetScope = computed<ManagedPlaylistScope>(() => routeScope.value === 'local' ? 'cloud' : 'local')
 const songCount = computed(() => playlist.value?.total ?? playlist.value?.list.length ?? 0)
 const accessCount = computed(() => Number(playlist.value?.info.visit_count ?? playlist.value?.info.play_count ?? 0) || 0)
@@ -433,8 +436,8 @@ const loadPlaylist = async () => {
   descriptionExpanded.value = false
   currentPage.value = 1
   loadedPage.value = 1
-  isLikedByUser.value = false
-  likeCount.value = -1
+  isCollectedByUser.value = false
+  collectionCount.value = -1
   if (isLiked.value) {
     loading.value = true
     try {
@@ -470,6 +473,7 @@ const loadPlaylist = async () => {
     try {
       await loadPageMode()
       await fetchPluginCollectionPage(1, false)
+      await loadCollectionState()
     } catch (err: any) {
       playlist.value = null
       errorMessage.value = getErrorMessage(err)
@@ -488,7 +492,7 @@ const loadPlaylist = async () => {
   try {
     await loadPageMode()
     playlist.value = await playlistStore.get(routeScope.value as ManagedPlaylistScope, routeId.value)
-    if (isCloudPlaylist.value) await loadLikeState()
+    if (isCloudPlaylist.value) await loadCollectionState()
   } catch (err: any) {
     playlist.value = null
     errorMessage.value = getErrorMessage(err)
@@ -603,35 +607,51 @@ const removeSong = async (index: number) => {
   playlist.value = await playlistStore.removeSong(routeScope.value, routeId.value, displayStartIndex.value + index)
 }
 
-// === Like Feature ===
+// === Playlist Collection Feature ===
 
-const loadLikeState = async () => {
-  if (!isCloudPlaylist.value || !routeId.value) {
-    isLikedByUser.value = false
-    likeCount.value = -1
+const loadCollectionState = async () => {
+  if (!showCollectButton.value || !routeId.value) {
+    isCollectedByUser.value = false
+    collectionCount.value = isCloudPlaylist.value
+      ? Number(playlist.value?.info.collection_count ?? 0) || 0
+      : -1
     return
   }
   try {
-    const result = await window.electronAPI.playlist.getLike(routeId.value)
-    isLikedByUser.value = result.liked
-    likeCount.value = result.like_count
+    const favorites = await window.electronAPI.playlist.getFavorites()
+    const source = collectionSource.value
+    isCollectedByUser.value = favorites.some((item) =>
+      String(item.id) === routeId.value && String(item.source || '') === source
+    )
+    collectionCount.value = isCloudPlaylist.value
+      ? Number(playlist.value?.info.collection_count ?? 0) || 0
+      : -1
   } catch {
-    isLikedByUser.value = false
-    likeCount.value = -1
+    isCollectedByUser.value = false
+    collectionCount.value = isCloudPlaylist.value
+      ? Number(playlist.value?.info.collection_count ?? 0) || 0
+      : -1
   }
 }
 
-const toggleLikePlaylist = async () => {
-  if (!routeId.value || likingPlaylist.value) return
-  likingPlaylist.value = true
+const toggleCollectPlaylist = async () => {
+  if (!routeId.value || collectingPlaylist.value || !showCollectButton.value) return
+  collectingPlaylist.value = true
   try {
-    const result = await window.electronAPI.playlist.toggleLike(routeId.value)
-    isLikedByUser.value = result.liked
-    likeCount.value = result.like_count
+    const result = isCollectedByUser.value
+      ? await window.electronAPI.playlist.uncollect(routeId.value, collectionSource.value)
+      : await window.electronAPI.playlist.collect(routeId.value, collectionSource.value)
+    if (result.status !== 'success') throw new Error(result.message || '收藏同步失败')
+    isCollectedByUser.value = result.collected
+    if (isCloudPlaylist.value && result.collection_count != null) {
+      collectionCount.value = Number(result.collection_count) || 0
+      if (playlist.value) playlist.value.info.collection_count = collectionCount.value
+    }
+    ElMessage.success(result.collected ? '已收藏歌单' : '已取消收藏')
   } catch (err: any) {
     ElMessage.error(err?.message || '操作失败')
   } finally {
-    likingPlaylist.value = false
+    collectingPlaylist.value = false
   }
 }
 
@@ -884,19 +904,19 @@ h1 {
   text-decoration: underline;
 }
 
-.icon-btn.like-btn {
+.icon-btn.collect-btn {
   color: var(--color-text-muted);
 }
 
-.icon-btn.like-btn:hover {
+.icon-btn.collect-btn:hover {
   color: #ff6b8a;
 }
 
-.icon-btn.like-btn.liked {
+.icon-btn.collect-btn.collected {
   color: #ff4d6d;
 }
 
-.icon-btn.like-btn.liked svg {
+.icon-btn.collect-btn.collected svg {
   fill: currentColor;
 }
 

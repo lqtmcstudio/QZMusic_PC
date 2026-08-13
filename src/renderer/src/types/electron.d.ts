@@ -86,7 +86,7 @@ export interface IElectronAPI {
     playlist: {
         list: () => Promise<{ local: AppPlaylist[]; cloud: AppPlaylist[]; items: AppPlaylist[] }>;
         publicList: (search?: string, sort?: string, page?: number, limit?: number) => Promise<{ items: AppPlaylist[]; total: number; page: number; limit: number; sort: string }>;
-        get: (scope: ManagedPlaylistScope, id: string) => Promise<AppPlaylist>;
+        get: (scope: ManagedPlaylistScope, id: string, recordVisit?: boolean) => Promise<AppPlaylist>;
         create: (scope: ManagedPlaylistScope, data: { name: string; desc?: string; is_public?: boolean }) => Promise<AppPlaylist>;
         update: (scope: ManagedPlaylistScope, id: string, info: Partial<PlaylistInfo>) => Promise<AppPlaylist>;
         delete: (scope: ManagedPlaylistScope, id: string) => Promise<{ success: boolean }>;
@@ -96,8 +96,9 @@ export interface IElectronAPI {
         import: () => Promise<{ success: boolean; canceled?: boolean; playlist?: AppPlaylist }>;
         convertScope: (scope: ManagedPlaylistScope, id: string, targetScope: ManagedPlaylistScope) => Promise<AppPlaylist>;
         copyToLocal: (scope: ManagedPlaylistScope, id: string) => Promise<AppPlaylist>;
-        toggleLike: (playlistId: string) => Promise<{ status: string; liked: boolean; like_count: number }>;
-        getLike: (playlistId: string) => Promise<{ status: string; liked: boolean; like_count: number }>;
+        getFavorites: () => Promise<Array<{ id: string; source: string }>>;
+        collect: (playlistId: string, source?: string) => Promise<{ status: string; collected: boolean; collection_count?: number | null; message?: string | null }>;
+        uncollect: (playlistId: string, source?: string) => Promise<{ status: string; collected: boolean; collection_count?: number | null; message?: string | null }>;
     };
     image: {
         selectAndUpload: () => Promise<{ success: boolean; canceled?: boolean; url?: string; message?: string }>;
@@ -205,7 +206,7 @@ export interface PlaylistInfo {
     author?: string;
     play_count?: string;
     visit_count?: number;
-    like_count?: number;
+    collection_count?: number;
     is_public?: boolean;
 }
 

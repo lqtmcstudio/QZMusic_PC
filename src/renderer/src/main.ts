@@ -26,6 +26,11 @@ const router = createRouter({
       component: () => import('./views/Playlist.vue')
     },
     {
+      path: '/favorite-playlists',
+      name: 'FavoritePlaylists',
+      component: () => import('./views/FavoritePlaylists.vue')
+    },
+    {
       path: '/recent',
       name: 'Recent',
       component: () => import('./views/Playlist.vue')
