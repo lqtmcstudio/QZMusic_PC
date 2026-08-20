@@ -334,14 +334,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .view-container {
   width: 100%;
-  height: 100%;
-  overflow-y: auto;
 }
 
 .content-wrapper {
   box-sizing: border-box;
-  /* 底部留白由 MainLayout .page-content 统一处理(播放栏 128px)，这里不再叠加 */
-  padding: 20px 30px;
+  padding: 20px 30px 0;
   width: 100%;
 }
 

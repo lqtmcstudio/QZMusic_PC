@@ -477,18 +477,22 @@
             <div v-else-if="activeCategory === 'shortcuts'" class="section shortcuts-section">
               <h2 class="shortcut-title">快捷键</h2>
               <div class="shortcut-list">
-                <div v-for="item in shortcutRows" :key="item.key" class="shortcut-row">
+                <div v-for="item in shortcutRows" :key="item.id" class="shortcut-row">
                   <div>
                     <div class="setting-label">{{ item.name }}</div>
                     <div class="setting-desc">{{ item.desc }}</div>
                   </div>
-                  <kbd>{{ item.key }}</kbd>
+                  <button
+                    v-if="item.editable"
+                    class="shortcut-key"
+                    :class="{ recording: recordingShortcut === item.id }"
+                    type="button"
+                    @click="startShortcutRecording(item.id)"
+                    @keydown="recordShortcut($event, item.id)"
+                    @blur="stopShortcutRecording"
+                  >{{ recordingShortcut === item.id ? '请按快捷键' : shortcutBindings[item.id] }}</button>
+                  <kbd v-else>{{ item.key }}</kbd>
                 </div>
-              </div>
-              <h2 class="section-title">快捷键</h2>
-              <div class="placeholder-content">
-                <Icon icon="lucide:keyboard" class="placeholder-icon" />
-                <p>自定义快捷键即将推出</p>
               </div>
             </div>
 
@@ -605,11 +609,60 @@ const allowPublicProfile = ref(false);
 const allowPublicFollowing = ref(false);
 const privacyLoading = ref(false);
 const shortcutRows = [
-  { key: 'Space', name: '播放 / 暂停', desc: '在非输入状态下切换当前播放状态' },
-  { key: 'A', name: '上一首', desc: '切换到播放队列里的上一首歌曲' },
-  { key: 'D', name: '下一首', desc: '切换到播放队列里的下一首歌曲' },
-  { key: 'W', name: '切换播放模式', desc: '在列表循环 / 单曲循环 / 随机之间切换' },
-];
+  { id: 'togglePlay', name: '播放 / 暂停', desc: '在非输入状态下切换当前播放状态', editable: true },
+  { id: 'previous', name: '上一首', desc: '切换到播放队列里的上一首歌曲', editable: true },
+  { id: 'next', name: '下一首', desc: '切换到播放队列里的下一首歌曲', editable: true },
+  { id: 'toggleMode', name: '切换播放模式', desc: '在列表循环 / 单曲循环 / 随机之间切换', editable: true },
+  { id: 'fullscreen', key: 'F11', name: '切换全屏', desc: '进入或退出应用窗口全屏', editable: false },
+] as const;
+
+const shortcutBindings = reactive({
+  togglePlay: 'Space',
+  previous: 'A',
+  next: 'D',
+  toggleMode: 'W',
+});
+const recordingShortcut = ref<keyof typeof shortcutBindings | null>(null);
+
+const formatShortcut = (event: KeyboardEvent) => {
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) return '';
+  const modifiers = [
+    event.ctrlKey ? 'Ctrl' : '',
+    event.altKey ? 'Alt' : '',
+    event.shiftKey ? 'Shift' : '',
+    event.metaKey ? 'Meta' : '',
+  ].filter(Boolean);
+  const key = event.code === 'Space' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key;
+  return [...modifiers, key].join('+');
+};
+
+const startShortcutRecording = (id: keyof typeof shortcutBindings) => {
+  recordingShortcut.value = id;
+};
+
+const stopShortcutRecording = () => {
+  recordingShortcut.value = null;
+};
+
+const recordShortcut = async (event: KeyboardEvent, id: keyof typeof shortcutBindings) => {
+  event.preventDefault();
+  event.stopPropagation();
+  const shortcut = formatShortcut(event);
+  if (!shortcut) return;
+  const conflict = Object.entries(shortcutBindings).find(([key, value]) => key !== id && value === shortcut);
+  if (conflict) {
+    ElMessage.warning('该快捷键已被其他操作使用');
+    return;
+  }
+  shortcutBindings[id] = shortcut;
+  stopShortcutRecording();
+  try {
+    await window.electronAPI.settings.set({ shortcuts: { ...shortcutBindings } });
+    ElMessage.success('快捷键已更新');
+  } catch (e) {
+    ElMessage.error('快捷键保存失败');
+  }
+};
 
 const settings = reactive({
   persistCache: true,
@@ -709,6 +762,7 @@ const loadAppearance = async () => {
     appearance.accentColor = allSettings.accentColor === '#b3c9df' ? '#8289d3' : allSettings.accentColor;
     playlistPagingMode.value = allSettings.playlistPagingMode || 'infinite';
     openPlayerOnSongClick.value = Boolean(allSettings.openPlayerOnSongClick);
+    Object.assign(shortcutBindings, allSettings.shortcuts || {});
     const b = allSettings.bass;
     if (b && typeof b === 'object') {
       bass.enabled = b.enabled === true;
@@ -1553,10 +1607,12 @@ input:checked + .toggle-slider:before {
   border-bottom: 1px solid var(--color-border);
 }
 
-kbd {
+kbd,
+.shortcut-key {
   min-width: 58px;
   height: 34px;
   padding: 0 12px;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   display: inline-flex;
   align-items: center;
@@ -1564,6 +1620,18 @@ kbd {
   background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
   font: 700 13px var(--font-family-base);
+}
+
+.shortcut-key {
+  cursor: pointer;
+}
+
+.shortcut-key:hover,
+.shortcut-key:focus-visible,
+.shortcut-key.recording {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  outline: none;
 }
 
 /* Plugin Card Styles */

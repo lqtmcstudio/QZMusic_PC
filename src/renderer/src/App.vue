@@ -53,20 +53,39 @@ const isTypingTarget = (target: EventTarget | null) => {
   );
 };
 
-const handleGlobalShortcut = (event: KeyboardEvent) => {
-  if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return;
+const defaultShortcuts = {
+  togglePlay: 'Space',
+  previous: 'A',
+  next: 'D',
+  toggleMode: 'W',
+};
+const shortcuts = ref({ ...defaultShortcuts });
 
-  const key = event.key.toLowerCase();
-  if (event.code === 'Space') {
+const shortcutFromEvent = (event: KeyboardEvent) => {
+  const modifiers = [
+    event.ctrlKey ? 'Ctrl' : '',
+    event.altKey ? 'Alt' : '',
+    event.shiftKey ? 'Shift' : '',
+    event.metaKey ? 'Meta' : '',
+  ].filter(Boolean);
+  const key = event.code === 'Space' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key;
+  return [...modifiers, key].join('+');
+};
+
+const handleGlobalShortcut = (event: KeyboardEvent) => {
+  if (event.repeat || isTypingTarget(event.target)) return;
+
+  const shortcut = shortcutFromEvent(event);
+  if (shortcut === shortcuts.value.togglePlay) {
     event.preventDefault();
     playerStore.togglePlay();
-  } else if (key === 'a') {
+  } else if (shortcut === shortcuts.value.previous) {
     event.preventDefault();
     playerStore.prev();
-  } else if (key === 'd') {
+  } else if (shortcut === shortcuts.value.next) {
     event.preventDefault();
     playerStore.next();
-  } else if (key === 'w') {
+  } else if (shortcut === shortcuts.value.toggleMode) {
     event.preventDefault();
     playerStore.toggleMode();
   }
@@ -118,6 +137,7 @@ onMounted(async () => {
   document.addEventListener('visibilitychange', onVisibilityChange);
   if (window.electronAPI?.settings) {
     const settings = await window.electronAPI.settings.getAll();
+    shortcuts.value = { ...defaultShortcuts, ...settings.shortcuts };
     document.documentElement.setAttribute('data-theme', settings.theme);
     const accentColor = settings.accentColor === '#b3c9df' ? '#8289d3' : settings.accentColor;
     document.documentElement.style.setProperty('--color-accent', accentColor);

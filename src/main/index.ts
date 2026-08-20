@@ -178,6 +178,11 @@ ipcMain.on('window-minimize', (event) => BrowserWindow.fromWebContents(event.sen
 ipcMain.on('window-maximize', () => win?.isMaximized() ? win.unmaximize() : win?.maximize())
 ipcMain.on('window-close', () => win?.close())
 ipcMain.handle('window-is-maximized', () => win?.isMaximized() || false)
+ipcMain.handle('window-toggle-fullscreen', () => {
+    if (!win) return false
+    win.setFullScreen(!win.isFullScreen())
+    return win.isFullScreen()
+})
 ipcMain.handle('window:setProgressBar', (_event, progress: number, mode: 'normal' | 'paused' = 'normal') => {
     if (!win) return false
     const value = Number(progress)
@@ -697,6 +702,12 @@ app.on('will-quit', () => {
 
 function registerZoomShortcuts(win: BrowserWindow) {
     win.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'F11') {
+            win.setFullScreen(!win.isFullScreen())
+            event.preventDefault()
+            return
+        }
+
         if (input.control || input.meta) {
             if (input.key.toLowerCase() === '=' || input.key === '+') {
                 let currentZoom = win.webContents.getZoomFactor();

@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     maximizeWindow: () => ipcRenderer.send('window-maximize'),
     closeWindow: () => ipcRenderer.send('window-close'),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+    toggleFullScreen: () => ipcRenderer.invoke('window-toggle-fullscreen'),
     setTaskbarProgress: (progress: number, mode: 'normal' | 'paused' = 'normal') => ipcRenderer.invoke('window:setProgressBar', progress, mode),
     setKeepAwake: (playing: boolean) => ipcRenderer.invoke('app:setKeepAwake', playing),
 

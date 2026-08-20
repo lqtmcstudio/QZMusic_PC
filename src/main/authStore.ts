@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import QRCode from 'qrcode'
+import { genSig } from './sig.js'
 
 export const API_BASE_URL = 'https://api.qz.shiqianjiang.cn/app'
 const AUTH_LOGIN_URL = `${API_BASE_URL}/auth/login`
@@ -129,8 +130,35 @@ export async function openLoginPage(forcePrompt = false): Promise<{ success: boo
     return { success: true, url }
 }
 
+async function signedFetch(pathname: string, init: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(init.headers)
+    const method = (init.method || 'GET').toUpperCase()
+    const body = init.body
+    let payload = pathname
+
+    if (['POST', 'PUT', 'PATCH'].includes(method) && body != null) {
+        if (typeof body === 'string') {
+            payload = body
+        } else if (body instanceof URLSearchParams) {
+            payload = body.toString()
+        } else if (body instanceof Uint8Array) {
+            payload = Buffer.from(body).toString('utf8')
+        } else {
+            throw new Error(`Unsupported signed request body for ${method} ${pathname}`)
+        }
+    }
+
+    const timestamp = Date.now().toString()
+    const signature = genSig(payload, timestamp)
+    if (!signature) throw new Error('Failed to generate request signature')
+    headers.set('X-Timestamp', timestamp)
+    headers.set('X-APP-Sign', signature)
+
+    return fetch(`${API_BASE_URL}${pathname}`, { ...init, headers })
+}
+
 async function authQrFetch<T>(pathname: string, body: any): Promise<T> {
-    const resp = await fetch(`${API_BASE_URL}${pathname}`, {
+    const resp = await signedFetch(pathname, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -195,7 +223,7 @@ export async function refreshAuthState(): Promise<AuthState> {
     const state = loadAuthState()
     if (!state.accessToken || !state.refreshToken) return state
 
-    const resp = await fetch(`${API_BASE_URL}/auth/refresh_token`, {
+    const resp = await signedFetch('/auth/refresh_token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -236,7 +264,7 @@ export async function qzFetch(pathname: string, init: RequestInit = {}): Promise
     headers.set('Content-Type', headers.get('Content-Type') || 'application/json')
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
-    const resp = await fetch(`${API_BASE_URL}${pathname}`, {
+    const resp = await signedFetch(pathname, {
         ...init,
         headers,
     })

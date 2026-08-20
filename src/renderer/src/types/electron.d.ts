@@ -19,6 +19,13 @@ export interface AudioOutputConfig {
     logEnabled: boolean;
 }
 
+export interface ShortcutBindings {
+    togglePlay: string;
+    previous: string;
+    next: string;
+    toggleMode: string;
+}
+
 export interface AudioDeviceFormat {
     sample_rate: number;
     channels: number;
@@ -37,6 +44,7 @@ export interface IElectronAPI {
     maximizeWindow: () => void;
     closeWindow: () => void;
     isMaximized: () => Promise<boolean>;
+    toggleFullScreen: () => Promise<boolean>;
     setTaskbarProgress: (progress: number, mode?: 'normal' | 'paused') => Promise<boolean>;
     setKeepAwake: (playing: boolean) => Promise<boolean>;
     qzplayer: {
@@ -134,8 +142,8 @@ export interface IElectronAPI {
     };
     // Settings
     settings: {
-        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig }>;
-        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig }>) => Promise<any>;
+        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings }>;
+        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings }>) => Promise<any>;
         getTheme: () => Promise<'dark' | 'light'>;
         setTheme: (theme: 'dark' | 'light') => Promise<void>;
         getAccentColor: () => Promise<string>;

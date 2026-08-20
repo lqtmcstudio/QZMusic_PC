@@ -24,6 +24,13 @@ export interface AudioOutputConfig {
     logEnabled: boolean;        // 调试日志开关
 }
 
+export interface ShortcutBindings {
+    togglePlay: string;
+    previous: string;
+    next: string;
+    toggleMode: string;
+}
+
 export interface AppSettings {
     // Cache
     persistCache: boolean;
@@ -37,6 +44,7 @@ export interface AppSettings {
     // Playback
     bass: BassSourceState; // 低音增强配置(普通/高级)
     audioOutput: AudioOutputConfig; // 音频输出设备 + 独占模式
+    shortcuts: ShortcutBindings;
 }
 
 const DEFAULT_BASS: BassSourceState = {
@@ -58,6 +66,13 @@ const DEFAULT_AUDIO_OUTPUT: AudioOutputConfig = {
     logEnabled: true,
 };
 
+const DEFAULT_SHORTCUTS: ShortcutBindings = {
+    togglePlay: 'Space',
+    previous: 'A',
+    next: 'D',
+    toggleMode: 'W',
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
     persistCache: true,
     cachePath: path.join(app.getPath('userData'), 'cache'), // Default
@@ -67,6 +82,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     openPlayerOnSongClick: false,
     bass: { ...DEFAULT_BASS },
     audioOutput: { ...DEFAULT_AUDIO_OUTPUT },
+    shortcuts: { ...DEFAULT_SHORTCUTS },
 };
 
 let settingsCache: AppSettings | null = null;
@@ -82,7 +98,12 @@ export function loadSettings(): AppSettings {
     try {
         if (fs.existsSync(settingsPath)) {
             const data = fs.readFileSync(settingsPath, 'utf-8');
-            settingsCache = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+            const stored = JSON.parse(data);
+            settingsCache = {
+                ...DEFAULT_SETTINGS,
+                ...stored,
+                shortcuts: { ...DEFAULT_SHORTCUTS, ...stored.shortcuts },
+            };
             console.log('[Settings] Loaded from disk:', settingsCache);
             return settingsCache!;
         }
