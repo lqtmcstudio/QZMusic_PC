@@ -280,6 +280,32 @@
                 </div>
               </div>
 
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-label">启动时自动恢复播放</div>
+                  <div class="setting-desc">打开应用后自动从上次暂停的位置继续播放</div>
+                </div>
+                <div class="setting-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" v-model="autoPlayOnStart" @change="onAutoPlayOnStartChange" />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-label">关闭时最小化到托盘</div>
+                  <div class="setting-desc">点击关闭按钮后程序最小化到系统托盘，双击托盘图标可恢复</div>
+                </div>
+                <div class="setting-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" v-model="closeToTray" @change="onCloseToTrayChange" />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+
               <!-- 低音增强 -->
               <div class="setting-item bass-boost-item">
                 <div class="setting-info">
@@ -569,6 +595,8 @@ const enableTransition = ref(false);
 const plugins = ref<any[]>([]);
 const playlistPagingMode = ref<'infinite' | 'pagination'>('infinite');
 const openPlayerOnSongClick = ref(false);
+const closeToTray = ref(false);
+const autoPlayOnStart = ref(true);
 const bass = reactive({
   enabled: false,
   mode: 'speaker' as 'speaker' | 'headphone',
@@ -762,6 +790,8 @@ const loadAppearance = async () => {
     appearance.accentColor = allSettings.accentColor === '#b3c9df' ? '#8289d3' : allSettings.accentColor;
     playlistPagingMode.value = allSettings.playlistPagingMode || 'infinite';
     openPlayerOnSongClick.value = Boolean(allSettings.openPlayerOnSongClick);
+    closeToTray.value = Boolean(allSettings.closeToTray);
+    autoPlayOnStart.value = allSettings.autoPlayOnStart !== false;
     Object.assign(shortcutBindings, allSettings.shortcuts || {});
     const b = allSettings.bass;
     if (b && typeof b === 'object') {
@@ -976,6 +1006,18 @@ const onOpenPlayerPreferenceChange = async () => {
   window.dispatchEvent(new CustomEvent('qz-open-player-on-song-click-changed', {
     detail: openPlayerOnSongClick.value,
   }));
+};
+
+const onCloseToTrayChange = async () => {
+  if (window.electronAPI?.settings) {
+    await window.electronAPI.settings.set({ closeToTray: closeToTray.value });
+  }
+};
+
+const onAutoPlayOnStartChange = async () => {
+  if (window.electronAPI?.settings) {
+    await window.electronAPI.settings.set({ autoPlayOnStart: autoPlayOnStart.value });
+  }
 };
 
 let bassApplyTimer: ReturnType<typeof setTimeout> | null = null;

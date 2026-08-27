@@ -7,6 +7,29 @@ export function formatDuration(ms: number): string {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
+function normalizeInterval(val: unknown): string {
+    const raw = String(val ?? '').trim();
+    if (!raw || raw === '--' || raw === '--/--' || raw === '--:--') return '--:--';
+
+    // 纯数字视为毫秒(插件规范 interval 应为 "MM:SS" 字符串, 部分插件返回毫秒数)
+    if (/^\d+$/.test(raw)) {
+        const total = Math.floor(Number(raw) / 1000);
+        const m = Math.floor(total / 60);
+        const s = total % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    // 已匹配 M:SS 或 MM:SS（允许更长分钟）
+    const m = raw.match(/^(\d+):(\d{1,2})$/);
+    if (m) {
+        const minutes = Number(m[1]);
+        const seconds = Number(m[2]);
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    return raw;
+}
+
 /**
  * 插件返回的歌曲 JSON 已是手机端 Music 格式(artists/pic/interval/qualities...),
  * 这里只做最小规整: id/source 字符串化, 缺省补默认值, 不做字段重命名。
@@ -20,7 +43,7 @@ export function toSong(raw: any): Song {
         pic: String(raw?.pic ?? raw?.img ?? ''),
         sPic: raw?.sPic ? String(raw.sPic) : undefined,
         mPic: raw?.mPic ? String(raw.mPic) : undefined,
-        interval: String(raw?.interval ?? '--/--'),
+        interval: normalizeInterval(raw?.interval),
         qualities: raw?.qualities ?? raw?.types,
         quality: raw?.quality ?? null,
         albumName: raw?.albumName ?? null,

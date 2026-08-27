@@ -19,7 +19,7 @@
             </div>
           </div>
 
-          <div class="track-info">
+          <div class="track-info" @contextmenu.prevent="showTrackContextMenu">
             <div class="track-name">{{ currentSong?.name || '未知歌曲' }}</div>
             <div class="track-artist">{{ currentSong?.artists || '未知歌手' }}</div>
           </div>
@@ -74,7 +74,7 @@
             </Transition>
           </div>
 
-          <div class="volume-control">
+          <div class="volume-control" @wheel.prevent="onVolumeWheel">
             <button class="icon-btn" @click.stop="toggleMute" title="音量">
               <Icon :icon="volumeIcon" />
             </button>
@@ -122,11 +122,25 @@
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="trackContextMenuVisible"
+        class="track-context-menu"
+        :style="{ left: trackContextMenuPos.x + 'px', top: trackContextMenuPos.y + 'px' }"
+        @click.stop
+      >
+        <button class="menu-row" @click="locateCurrentSong">
+          <Icon icon="lucide:list" />
+          <span>在播放列表中定位</span>
+        </button>
+      </div>
+    </Teleport>
   </transition>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
 import { usePlayerStore, PlayMode } from '../../stores/player'
@@ -154,6 +168,8 @@ const albumColor = ref('var(--color-accent)')
 const seekPreviewPercent = ref<number | null>(null)
 const isSeekDragging = ref(false)
 const suppressNextBarClick = ref(false)
+const trackContextMenuVisible = ref(false)
+const trackContextMenuPos = ref({ x: 0, y: 0 })
 
 const SEEK_DRAG_THRESHOLD = 22
 
@@ -227,6 +243,36 @@ const onVolumeChange = (e: Event) => {
 
 const toggleMute = () => {
   playerStore.setVolume(volume.value > 0 ? 0 : 50)
+}
+
+const onVolumeWheel = (e: WheelEvent) => {
+  const step = e.deltaY < 0 ? 3 : -3
+  const newVol = Math.max(0, Math.min(100, volume.value + step))
+  playerStore.setVolume(newVol)
+}
+
+const showTrackContextMenu = (e: MouseEvent) => {
+  trackContextMenuPos.value = { x: e.clientX, y: e.clientY }
+  trackContextMenuVisible.value = true
+  nextTick(() => {
+    window.addEventListener('click', closeTrackContextMenu, { once: true })
+  })
+}
+
+const closeTrackContextMenu = () => {
+  trackContextMenuVisible.value = false
+}
+
+const locateCurrentSong = () => {
+  closeTrackContextMenu()
+  showQueuePanel.value = true
+  nextTick(() => {
+    const queueList = document.querySelector('.queue-list') as HTMLElement | null
+    const activeRow = queueList?.querySelector('.queue-row.active') as HTMLElement | null
+    if (activeRow && queueList) {
+      activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  })
 }
 
 const isInteractiveTarget = (target: HTMLElement) => {
@@ -935,5 +981,34 @@ onUnmounted(() => {
   .track-artist {
     display: none;
   }
+}
+
+.track-context-menu {
+  position: fixed;
+  width: 220px;
+  padding: 7px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--color-bg-primary) 96%, white);
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  box-shadow: var(--shadow-elevated);
+  z-index: 10000;
+}
+
+.track-context-menu .menu-row {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: 12px;
+  color: var(--color-text-secondary);
+  text-align: left;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.track-context-menu .menu-row:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
 }
 </style>

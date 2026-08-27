@@ -57,7 +57,7 @@
           </button>
       </div>
 
-      <div class="song-list-container" v-else-if="!loading && songs.length > 0">
+      <div class="song-list-container" v-else-if="!loading && songs.length > 0" ref="songListRef">
         <div class="list-header">
            <div class="col-index">#</div>
            <div class="col-title">标题</div>
@@ -125,6 +125,7 @@ import type { Song } from '../types/song';
 
 const route = useRoute();
 const playerStore = usePlayerStore();
+const songListRef = ref<HTMLElement | null>(null);
 
 // --- State ---
 const query = computed(() => route.query.q as string || '');
@@ -262,6 +263,7 @@ const fetchData = async () => {
 const changePage = (page: number) => {
     currentPage.value = page;
     fetchData();
+    songListRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 const handlePlaySong = (index: number) => {
