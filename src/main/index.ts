@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, powerSaveBlocker } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, powerSaveBlocker, Tray } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -74,6 +74,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'out/renderer')
 process.env.VITE_PUBLIC = process.env.ELECTRON_RENDERER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let appTray: Tray | null
 let qzplayer: QzpController | null
 
 function notifyPluginsChanged(action: 'installed' | 'updated' | 'uninstalled', pluginId?: string): void {
@@ -156,6 +157,52 @@ function createWindow() {
         }
     })
 
+    // 关闭按钮逻辑: closeToTray 时最小化到托盘, 否则弹窗询问
+    win.on('close', (event) => {
+        const settings = loadSettings()
+        if (settings.closeToTray) {
+            event.preventDefault()
+            win?.hide()
+            return
+        }
+    })
+
+    // 尝试创建托盘
+    try {
+        const iconPath = path.join(process.env.APP_ROOT!, 'public', 'icon.ico')
+        if (fs.existsSync(iconPath)) {
+            appTray = new Tray(iconPath)
+            appTray.setToolTip('QZ Music')
+            appTray.on('double-click', () => {
+                win?.show()
+                win?.focus()
+            })
+            const contextMenu = Menu.buildFromTemplate([
+                { label: '显示主窗口', click: () => { win?.show(); win?.focus() } },
+                { type: 'separator' },
+                { label: '退出', click: () => { appTray?.destroy(); app.quit() } },
+            ])
+            appTray.setContextMenu(contextMenu)
+        }
+    } catch (err) {
+        console.warn('[Tray] 创建托盘失败:', err)
+    }
+
+    // DPI 适配: 高 DPI 屏幕下确保窗口尺寸合适
+    const { screen } = require('electron')
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const scaleFactor = primaryDisplay.scaleFactor || 1
+    if (scaleFactor > 1.25 && win) {
+        const minW = Math.ceil(950 / scaleFactor)
+        const minH = Math.ceil(800 / scaleFactor)
+        win.setMinimumSize(minW, minH)
+        const curW = win.getSize()[0]
+        const curH = win.getSize()[1]
+        if (curW < minW || curH < minH) {
+            win.setSize(Math.max(curW, minW), Math.max(curH, minH))
+        }
+    }
+
     win.webContents.on('did-finish-load', () => {
         win?.webContents.send('main-process-message', new Date().toLocaleString())
     })
@@ -176,7 +223,31 @@ function createWindow() {
 
 ipcMain.on('window-minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize())
 ipcMain.on('window-maximize', () => win?.isMaximized() ? win.unmaximize() : win?.maximize())
-ipcMain.on('window-close', () => win?.close())
+ipcMain.on('window-close', async () => {
+    const settings = loadSettings()
+    if (settings.closeToTray) {
+        win?.hide()
+        return
+    }
+    const result = await dialog.showMessageBox(win!, {
+        type: 'question',
+        buttons: ['直接关闭', '最小化到托盘', '取消'],
+        defaultId: 0,
+        title: '关闭确认',
+        message: '你想要如何关闭？',
+        checkboxLabel: '记住我的选择',
+        checkboxChecked: false,
+    })
+    if (result.checkboxChecked && result.response >= 0 && result.response <= 1) {
+        saveSettings({ closeToTray: result.response === 1 })
+    }
+    if (result.response === 0) {
+        appTray?.destroy()
+        win?.destroy()
+    } else if (result.response === 1) {
+        win?.hide()
+    }
+})
 ipcMain.handle('window-is-maximized', () => win?.isMaximized() || false)
 ipcMain.handle('window-toggle-fullscreen', () => {
     if (!win) return false
@@ -695,6 +766,10 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
     cleanupCache()
+    if (appTray) {
+        appTray.destroy()
+        appTray = null
+    }
     if (qzplayer) {
         qzplayer.destroy()
     }

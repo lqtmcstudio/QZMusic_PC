@@ -93,6 +93,7 @@ const menuOpen = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 const menuPosition = ref({ x: 0, y: 0 })
 const addingPlaylistKey = ref('')
+const MENU_EVENT = 'songtile:close-all-menus'
 
 const renderText = (text: string) => props.highlight ? props.highlight(text) : text
 
@@ -121,6 +122,11 @@ const closeMenu = () => {
   window.removeEventListener('click', closeMenu)
   window.removeEventListener('scroll', closeMenu, true)
   window.removeEventListener('resize', closeMenu)
+  window.removeEventListener(MENU_EVENT, closeMenu)
+}
+
+const onMenuCloseAll = () => {
+  if (menuOpen.value) closeMenu()
 }
 
 const clampMenuPosition = async () => {
@@ -136,11 +142,13 @@ const clampMenuPosition = async () => {
 }
 
 const openMenu = async (event: MouseEvent) => {
+  window.dispatchEvent(new Event(MENU_EVENT))
   menuPosition.value = { x: event.clientX, y: event.clientY }
   menuOpen.value = true
   window.addEventListener('click', closeMenu)
   window.addEventListener('scroll', closeMenu, true)
   window.addEventListener('resize', closeMenu)
+  window.addEventListener(MENU_EVENT, onMenuCloseAll)
   playlistStore.refresh().catch((error) => console.warn('[SongTile] Failed to refresh playlists:', error))
   await clampMenuPosition()
 }

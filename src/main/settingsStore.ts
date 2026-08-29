@@ -45,6 +45,9 @@ export interface AppSettings {
     bass: BassSourceState; // 低音增强配置(普通/高级)
     audioOutput: AudioOutputConfig; // 音频输出设备 + 独占模式
     shortcuts: ShortcutBindings;
+    // Behavior
+    closeToTray: boolean; // 关闭时最小化到托盘
+    autoPlayOnStart: boolean; // 启动时自动恢复播放
 }
 
 const DEFAULT_BASS: BassSourceState = {
@@ -83,6 +86,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     bass: { ...DEFAULT_BASS },
     audioOutput: { ...DEFAULT_AUDIO_OUTPUT },
     shortcuts: { ...DEFAULT_SHORTCUTS },
+    closeToTray: false,
+    autoPlayOnStart: true,
 };
 
 let settingsCache: AppSettings | null = null;

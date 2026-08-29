@@ -142,8 +142,8 @@ export interface IElectronAPI {
     };
     // Settings
     settings: {
-        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings }>;
-        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings }>) => Promise<any>;
+        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings; closeToTray: boolean; autoPlayOnStart: boolean }>;
+        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings; closeToTray: boolean; autoPlayOnStart: boolean }>) => Promise<any>;
         getTheme: () => Promise<'dark' | 'light'>;
         setTheme: (theme: 'dark' | 'light') => Promise<void>;
         getAccentColor: () => Promise<string>;

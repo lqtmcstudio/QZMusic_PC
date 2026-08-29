@@ -65,6 +65,7 @@
     "win": {
       "target": "nsis",
       "icon": "public/icon.ico",
+      "artifactName": "QZMusic.Setup.x64.pre-04.exe",
       "extraResources": [
         {
           "from": "core/qzplayer.exe",

@@ -59,6 +59,7 @@ export const usePlayerStore = defineStore('player', () => {
     const savedAddMode = localStorage.getItem('qz-player-add-mode');
     const addListMode = ref<'replace' | 'append'>((savedAddMode as 'replace' | 'append') || 'replace');
     const openPlayerOnSongClick = ref(false);
+    const autoPlayOnStart = ref(true);
 
     // Error Handling
     const playErrorCount = ref(0);
@@ -186,6 +187,7 @@ export const usePlayerStore = defineStore('player', () => {
         window.electronAPI?.settings?.getAll?.()
             .then((settings) => {
                 openPlayerOnSongClick.value = Boolean(settings.openPlayerOnSongClick);
+                autoPlayOnStart.value = settings.autoPlayOnStart !== false;
             })
             .catch((error) => console.warn('[Player] Failed to load click preference:', error));
         window.addEventListener('qz-open-player-on-song-click-changed', (event) => {
@@ -392,7 +394,14 @@ export const usePlayerStore = defineStore('player', () => {
         // 一起听: 与服务端线性推进一致(服务端 NEXT = currentIndex+1), 避免 random 本地与服务端错位
         let nextIndex = currentIndex.value;
         if (inTogether) {
-            nextIndex = (currentIndex.value + 1) % playlist.value.length;
+            // 一起听模式下也尊重播放模式: 房主可使用 random/single
+            if (playMode.value === PlayMode.Random) {
+                nextIndex = Math.floor(Math.random() * playlist.value.length);
+            } else if (playMode.value === PlayMode.Single && !manual) {
+                nextIndex = currentIndex.value;
+            } else {
+                nextIndex = (currentIndex.value + 1) % playlist.value.length;
+            }
             together!.sendNext();
         } else if (playMode.value === PlayMode.Single && !manual) {
             nextIndex = currentIndex.value;
@@ -740,9 +749,8 @@ export const usePlayerStore = defineStore('player', () => {
     if (playlist.value.length > 0 && currentIndex.value >= 0 && currentIndex.value < playlist.value.length) {
         const restoredSong = playlist.value[currentIndex.value];
         if (restoredSong) {
-            // Use playSong with autoPlay=false to load the song into the engine
             setTimeout(() => {
-                playSong(restoredSong, true, currentIndex.value);
+                playSong(restoredSong, autoPlayOnStart.value, currentIndex.value);
                 fetchLyrics(restoredSong);
             }, 0);
         }
