@@ -14,12 +14,15 @@
     "electron:build": "npm run icons && electron-vite build && electron-builder --win --x64 --config --publish never",
     "electron:build:linux": "npm run icons && electron-vite build && electron-builder --linux --x64 --config --publish never"
   },
-  "dependencies": {
+  "devDependencies": {
     "@applemusic-like-lyrics/core": "file:amll-local/packages/core",
     "@applemusic-like-lyrics/lyric": "file:amll-local/packages/lyric",
     "@applemusic-like-lyrics/ttml": "file:amll-local/packages/ttml",
     "@applemusic-like-lyrics/vue": "file:amll-local/packages/vue",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@iconify-json/fluent": "^1.2.58",
+    "@iconify-json/lucide": "^1.2.136",
+    "@iconify-json/ph": "^1.2.2",
     "@iconify/vue": "^5.0.1",
     "@pixi/app": "^7.4.3",
     "@pixi/core": "^7.4.3",
@@ -29,30 +32,25 @@
     "@pixi/filter-color-matrix": "^7.4.3",
     "@pixi/sprite": "^7.4.3",
     "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-vue": "^6.0.7",
     "@vitejs/plugin-vue-jsx": "^5.1.5",
     "element-plus": "^2.13.7",
+    "electron": "^42.4.1",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^5.0.0",
     "jss": "^10.10.0",
     "jss-preset-default": "^10.10.0",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
-    "url": "^0.11.4",
-    "vite-plugin-wasm": "^3.6.0",
-    "vue": "^3.5.33",
-    "vue-router": "^5.0.6"
-  },
-  "devDependencies": {
-    "@iconify-json/fluent": "^1.2.58",
-    "@iconify-json/lucide": "^1.2.136",
-    "@iconify-json/ph": "^1.2.2",
-    "@vitejs/plugin-vue": "^6.0.7",
-    "electron": "^42.4.1",
-    "electron-builder": "^24.13.3",
-    "electron-vite": "^5.0.0",
     "sass-embedded": "^1.97.1",
     "typescript": "^5.9.3",
+    "url": "^0.11.4",
     "vite": "7.3.5",
     "vite-plugin-node-polyfills": "^0.25.0",
+    "vite-plugin-wasm": "^3.6.0",
     "vite-svg-loader": "^5.1.0",
+    "vue": "^3.5.33",
+    "vue-router": "^5.0.6",
     "vue-tsc": "^2.2.12"
   },
   "main": "out/main/index.js",
@@ -64,12 +62,16 @@
     "productName": "QZMusic",
     "appId": "love.qz.music",
     "asar": true,
+    "files": [
+      "out/**",
+      "package.json"
+    ],
     "directories": {
       "output": "release"
     },
     "win": {
       "target": "nsis",
-      "icon": "public/icon.ico",
+      "icon": "public/icon.png",
       "artifactName": "QZMusic.Setup.x64.pre-04.exe",
       "extraResources": [
         {
