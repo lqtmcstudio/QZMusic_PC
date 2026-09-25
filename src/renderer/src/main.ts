@@ -1,4 +1,5 @@
 // src/renderer/main.ts
+import './iconifyOffline'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'

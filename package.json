@@ -6,11 +6,13 @@
   "homepage": "https://github.com/lqtmcstudio/QZMusic_PC",
   "version": "1.0.3",
   "scripts": {
+    "icons": "node scripts/build-icons.mjs",
+    "predev": "npm run icons",
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "npm run icons && electron-vite build",
     "preview": "electron-vite preview",
-    "electron:build": "electron-vite build && electron-builder --win --x64 --config --publish never",
-    "electron:build:linux": "electron-vite build && electron-builder --linux --x64 --config --publish never"
+    "electron:build": "npm run icons && electron-vite build && electron-builder --win --x64 --config --publish never",
+    "electron:build:linux": "npm run icons && electron-vite build && electron-builder --linux --x64 --config --publish never"
   },
   "dependencies": {
     "@applemusic-like-lyrics/core": "file:amll-local/packages/core",
@@ -39,6 +41,9 @@
     "vue-router": "^5.0.6"
   },
   "devDependencies": {
+    "@iconify-json/fluent": "^1.2.58",
+    "@iconify-json/lucide": "^1.2.136",
+    "@iconify-json/ph": "^1.2.2",
     "@vitejs/plugin-vue": "^6.0.7",
     "electron": "^42.4.1",
     "electron-builder": "^24.13.3",

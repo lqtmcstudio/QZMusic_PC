@@ -20,7 +20,21 @@ npm run build
 
 # Build Windows installer
 npm run electron:build
+
+# Regenerate offline icon data (runs automatically before dev/build)
+npm run icons
 ```
+
+### Offline Icons
+
+Iconify icons are fully offline. `scripts/build-icons.mjs` scans `src/renderer` for
+`<prefix>:<name>` icon references, extracts only the used icons from the
+`@iconify-json/*` dev packages into `src/renderer/src/assets/icons.json`, and
+`src/renderer/src/iconifyOffline.ts` registers them via `addCollection` at startup
+(before `main.ts` mounts the app). No runtime requests go to `api.iconify.design`.
+After referencing a new icon, run `npm run icons` (or restart dev/build) — the
+script fails loudly if an icon name doesn't exist or its collection package is
+missing. Verify bundle completeness with `node scripts/verify-icons-bundle.mjs`.
 
 No test runner is configured. No linter is configured.
 

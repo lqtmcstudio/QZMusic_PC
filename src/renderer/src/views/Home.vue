@@ -47,7 +47,7 @@
           <small>保存在当前电脑</small>
         </button>
         <button class="quick-tile" :disabled="!authStore.isLoggedIn" @click="createCloudPlaylist">
-          <Icon icon="lucide:cloud-plus" />
+          <Icon icon="lucide:cloud-upload" />
           <span>新建云端歌单</span>
           <small>{{ authStore.isLoggedIn ? '同步到账号' : '登录后可用' }}</small>
         </button>
