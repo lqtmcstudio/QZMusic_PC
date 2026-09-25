@@ -26,3 +26,8 @@ dist-ssr
 
 CLAUDE.md
 bun.lock
+
+# Build outputs
+out
+release
+release2
