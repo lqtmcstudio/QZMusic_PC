@@ -3,6 +3,7 @@
   <FullScreenPlayer />
   <LoginDialog v-model:visible="showLoginDialog" />
   <Settings v-show="settingsVisible" v-if="showSettings" @close="showSettings = false" />
+  <CloseConfirmDialog :visible="showCloseConfirm" @choose="onCloseConfirmChoose" />
 </template>
 
 <script setup lang="ts">
@@ -12,6 +13,7 @@ import MainLayout from './layout/MainLayout.vue';
 import Settings from './components/Settings.vue';
 import FullScreenPlayer from './components/FullScreenPlayer.vue';
 import LoginDialog from './components/LoginDialog.vue';
+import CloseConfirmDialog from './components/CloseConfirmDialog.vue';
 import { useAuthStore } from './stores/auth';
 import { usePlaylistsStore } from './stores/playlists';
 import { usePlayerStore } from './stores/player';
@@ -19,6 +21,16 @@ import { useListenTogetherStore } from './stores/listenTogether';
 
 const showSettings = ref(false);
 const showLoginDialog = ref(false);
+
+// ===== 关闭确认（主进程触发的应用内自定义弹窗） =====
+const showCloseConfirm = ref(false);
+let offConfirmClose: (() => void) | undefined;
+
+const onCloseConfirmChoose = (action: 'quit' | 'tray' | 'cancel', remember: boolean) => {
+  showCloseConfirm.value = false;
+  window.electronAPI?.closeConfirmResult(action, remember);
+};
+
 const authStore = useAuthStore();
 const playlistsStore = usePlaylistsStore();
 const playerStore = usePlayerStore();
@@ -135,6 +147,7 @@ onMounted(async () => {
   window.addEventListener('keydown', handleGlobalShortcut);
   window.addEventListener('focus', checkClipboardInvite);
   document.addEventListener('visibilitychange', onVisibilityChange);
+  offConfirmClose = window.electronAPI?.onConfirmClose(() => { showCloseConfirm.value = true; });
   if (window.electronAPI?.settings) {
     const settings = await window.electronAPI.settings.getAll();
     shortcuts.value = { ...defaultShortcuts, ...settings.shortcuts };
@@ -157,6 +170,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalShortcut);
   window.removeEventListener('focus', checkClipboardInvite);
   document.removeEventListener('visibilitychange', onVisibilityChange);
+  offConfirmClose?.();
   clearTimeout(settingsHideTimer);
 });
 </script>

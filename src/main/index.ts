@@ -142,6 +142,10 @@ app.on('open-url', (event, url) => {
 
 // === Electron 窗口逻辑 ===
 
+// 用户在关闭确认弹窗中选择退出 / 托盘退出 / 系统关机时置 true，
+// 此时放行 close 事件，避免 preventDefault 阻断退出
+let isQuitting = false
+
 function createWindow() {
     win = new BrowserWindow({
         frame: false,
@@ -157,14 +161,18 @@ function createWindow() {
         }
     })
 
-    // 关闭按钮逻辑: closeToTray 时最小化到托盘, 否则弹窗询问
+    // 关闭逻辑: closeToTray 时最小化到托盘, 否则交由渲染进程弹出自定义确认弹窗
+    // (Alt+F4 / 任务栏关闭与标题栏关闭按钮走同一流程)
     win.on('close', (event) => {
+        if (isQuitting) return
         const settings = loadSettings()
         if (settings.closeToTray) {
             event.preventDefault()
             win?.hide()
             return
         }
+        event.preventDefault()
+        win?.webContents.send('app:confirm-close')
     })
 
     // 尝试创建托盘
@@ -223,28 +231,26 @@ function createWindow() {
 
 ipcMain.on('window-minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize())
 ipcMain.on('window-maximize', () => win?.isMaximized() ? win.unmaximize() : win?.maximize())
-ipcMain.on('window-close', async () => {
+ipcMain.on('window-close', () => {
     const settings = loadSettings()
     if (settings.closeToTray) {
         win?.hide()
         return
     }
-    const result = await dialog.showMessageBox(win!, {
-        type: 'question',
-        buttons: ['直接关闭', '最小化到托盘', '取消'],
-        defaultId: 0,
-        title: '关闭确认',
-        message: '你想要如何关闭？',
-        checkboxLabel: '记住我的选择',
-        checkboxChecked: false,
-    })
-    if (result.checkboxChecked && result.response >= 0 && result.response <= 1) {
-        saveSettings({ closeToTray: result.response === 1 })
+    win?.webContents.send('app:confirm-close')
+})
+
+// 渲染进程自定义关闭确认弹窗的选择结果
+ipcMain.on('close-confirm-result', (_event, action: 'quit' | 'tray' | 'cancel', remember: boolean) => {
+    if (action === 'cancel') return
+    if (remember) {
+        saveSettings({ closeToTray: action === 'tray' })
     }
-    if (result.response === 0) {
+    if (action === 'quit') {
+        isQuitting = true
         appTray?.destroy()
         win?.destroy()
-    } else if (result.response === 1) {
+    } else {
         win?.hide()
     }
 })
@@ -281,6 +287,8 @@ ipcMain.handle('app:setKeepAwake', (_event, playing: boolean) => {
     return true
 })
 app.on('before-quit', () => {
+    // 托盘退出 / 系统关机等主动退出路径，放行窗口 close 事件
+    isQuitting = true
     if (keepAwakeId !== null) {
         try { powerSaveBlocker.stop(keepAwakeId) } catch {}
         keepAwakeId = null

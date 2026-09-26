@@ -18,6 +18,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     minimizeWindow: () => ipcRenderer.send('window-minimize'),
     maximizeWindow: () => ipcRenderer.send('window-maximize'),
     closeWindow: () => ipcRenderer.send('window-close'),
+    onConfirmClose: (callback: () => void) => {
+        const listener = () => callback()
+        ipcRenderer.on('app:confirm-close', listener)
+        return () => ipcRenderer.removeListener('app:confirm-close', listener)
+    },
+    closeConfirmResult: (action: 'quit' | 'tray' | 'cancel', remember: boolean) =>
+        ipcRenderer.send('close-confirm-result', action, remember),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     toggleFullScreen: () => ipcRenderer.invoke('window-toggle-fullscreen'),
     setTaskbarProgress: (progress: number, mode: 'normal' | 'paused' = 'normal') => ipcRenderer.invoke('window:setProgressBar', progress, mode),

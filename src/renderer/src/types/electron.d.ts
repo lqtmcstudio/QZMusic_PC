@@ -43,6 +43,8 @@ export interface IElectronAPI {
     minimizeWindow: () => void;
     maximizeWindow: () => void;
     closeWindow: () => void;
+    onConfirmClose: (callback: () => void) => () => void;
+    closeConfirmResult: (action: 'quit' | 'tray' | 'cancel', remember: boolean) => void;
     isMaximized: () => Promise<boolean>;
     toggleFullScreen: () => Promise<boolean>;
     setTaskbarProgress: (progress: number, mode?: 'normal' | 'paused') => Promise<boolean>;
