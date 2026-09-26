@@ -823,17 +823,20 @@ function abortAllDownloads(): void {
     downloadTasks.clear();
 }
 
-export function clearCacheNow(): void {
+export function clearCacheNow(): { success: boolean; error?: string } {
     const dir = ensureCacheDir();
     abortAllDownloads();
     urlCache.clear();
 
     try {
-        fs.rmSync(dir, { recursive: true, force: true });
+        // maxRetries 对抗 Windows 下文件被占用(如音频流正在写盘)导致的瞬时删除失败
+        fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 150 });
         fs.mkdirSync(dir, { recursive: true });
         console.log('[Proxy] Cache cleared');
+        return { success: true };
     } catch (err) {
         console.error('[Proxy] Failed to clear cache:', err);
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
 }
 

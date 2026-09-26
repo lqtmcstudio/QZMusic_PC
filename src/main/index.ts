@@ -625,7 +625,7 @@ ipcMain.handle('cache:openFolder', () => {
 })
 
 ipcMain.handle('cache:clear', () => {
-    clearCacheNow()
+    return clearCacheNow()
 })
 
 ipcMain.handle('dialog:openDirectory', async () => {

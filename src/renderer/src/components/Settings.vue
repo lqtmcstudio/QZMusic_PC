@@ -1167,10 +1167,18 @@ const openCacheFolder = async () => {
 };
 
 const clearCache = async () => {
-  if (window.electronAPI) {
-    await window.electronAPI.clearCache();
-    await loadCacheInfo();
+  if (!window.electronAPI) return;
+  try {
+    const result = await window.electronAPI.clearCache();
+    if (result?.success) {
+      ElMessage.success('缓存已清理');
+    } else {
+      ElMessage.error(result?.error ? `清理失败：${result.error}` : '清理失败，请稍后重试');
+    }
+  } catch {
+    ElMessage.error('清理失败，请稍后重试');
   }
+  await loadCacheInfo();
 };
 
 const isChangingCache = ref(false);

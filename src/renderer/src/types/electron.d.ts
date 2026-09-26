@@ -133,7 +133,7 @@ export interface IElectronAPI {
     getCacheInfo: () => Promise<{ path: string; size: string; persistCache: boolean }>;
     setCachePersist: (persist: boolean) => Promise<void>;
     openCacheFolder: () => Promise<void>;
-    clearCache: () => Promise<void>;
+    clearCache: () => Promise<{ success: boolean; error?: string }>;
     changeCacheLocation: (newPath: string) => Promise<{ success: boolean; message: string; path?: string }>;
     selectDirectory: () => Promise<string | null>;
     selectDirectories: () => Promise<string[]>;
