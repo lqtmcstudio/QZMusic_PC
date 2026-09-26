@@ -206,21 +206,6 @@ function createWindow() {
         console.warn('[Tray] 创建托盘失败:', err)
     }
 
-    // DPI 适配: 高 DPI 屏幕下确保窗口尺寸合适
-    const { screen } = require('electron')
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const scaleFactor = primaryDisplay.scaleFactor || 1
-    if (scaleFactor > 1.25 && win) {
-        const minW = Math.ceil(950 / scaleFactor)
-        const minH = Math.ceil(800 / scaleFactor)
-        win.setMinimumSize(minW, minH)
-        const curW = win.getSize()[0]
-        const curH = win.getSize()[1]
-        if (curW < minW || curH < minH) {
-            win.setSize(Math.max(curW, minW), Math.max(curH, minH))
-        }
-    }
-
     win.webContents.on('did-finish-load', () => {
         win?.webContents.send('main-process-message', new Date().toLocaleString())
     })

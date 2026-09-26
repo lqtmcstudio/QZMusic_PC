@@ -4,7 +4,7 @@
   "author": "lqtmcstudio",
   "description": "QZMusic - 简洁、美观、拓展性强的音乐播放器",
   "homepage": "https://github.com/lqtmcstudio/QZMusic_PC",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "scripts": {
     "icons": "node scripts/build-icons.mjs",
     "predev": "npm run icons",
@@ -64,7 +64,8 @@
     "asar": true,
     "files": [
       "out/**",
-      "package.json"
+      "package.json",
+      "public/icon.ico"
     ],
     "directories": {
       "output": "release"
@@ -72,7 +73,7 @@
     "win": {
       "target": "nsis",
       "icon": "public/icon.png",
-      "artifactName": "QZMusic.Setup.x64.pre-04.exe",
+      "artifactName": "QZMusic.Setup.x64.pre-1.0.5.exe",
       "extraResources": [
         {
           "from": "core/qzplayer.exe",
