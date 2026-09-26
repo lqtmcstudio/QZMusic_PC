@@ -129,10 +129,15 @@ if (process.defaultApp) {
 app.on('second-instance', (_event, argv) => {
     const callbackUrl = argv.find((arg) => arg.startsWith('qzmusic://auth_result'))
     if (callbackUrl) handleAuthCallback(callbackUrl)
-    if (win) {
-        if (win.isMinimized()) win.restore()
-        win.focus()
+    // 再次启动时唤回已有窗口: 托盘隐藏/最小化时恢复显示并置前,
+    // 避免用户重复双击时表现为"闪退"(新实例退出而旧窗口无反应)
+    if (!win || win.isDestroyed()) {
+        createWindow()
+        return
     }
+    if (win.isMinimized()) win.restore()
+    if (!win.isVisible()) win.show()
+    win.focus()
 })
 
 app.on('open-url', (event, url) => {
@@ -201,6 +206,7 @@ function createWindow() {
                 { label: '退出', click: () => { appTray?.destroy(); app.quit() } },
             ])
             appTray.setContextMenu(contextMenu)
+            console.log('[Tray] 系统托盘已创建')
         }
     } catch (err) {
         console.warn('[Tray] 创建托盘失败:', err)
@@ -276,8 +282,8 @@ ipcMain.handle('app:get-runtime-info', () => ({
     platform: `${process.platform}-${process.arch}`,
 }))
 
-// --- 外部链接（仅放行本项目 GitHub 域名, 防止任意 URL 打开） ---
-const ALLOWED_EXTERNAL_RE = /^https:\/\/github\.com\/lqtmcstudio/i
+// --- 外部链接（仅放行本项目/成员 GitHub 与官网域名, 防止任意 URL 打开） ---
+const ALLOWED_EXTERNAL_RE = /^(https:\/\/github\.com\/(lqtmcstudio|Miao-moe)|https?:\/\/music\.qz\.shiqianjiang\.cn)/i
 ipcMain.handle('app:open-external', (_event, url: string) => {
     if (typeof url !== 'string' || !ALLOWED_EXTERNAL_RE.test(url)) return false
     shell.openExternal(url)
@@ -837,7 +843,14 @@ app.whenReady().then(() => {
     }
     // ----------------------------------------
     Menu.setApplicationMenu(null)
-    createWindow()
+    try {
+        createWindow()
+    } catch (err) {
+        // 创建窗口失败时退出进程, 避免留下无窗口无托盘的僵尸实例
+        console.error('[Window] 创建窗口失败, 应用退出:', err)
+        app.quit()
+        return
+    }
 
     const callbackUrl = process.argv.find((arg) => arg.startsWith('qzmusic://auth_result'))
     if (callbackUrl) handleAuthCallback(callbackUrl)

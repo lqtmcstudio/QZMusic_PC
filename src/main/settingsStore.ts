@@ -48,6 +48,7 @@ export interface AppSettings {
     // Behavior
     closeToTray: boolean; // 关闭时最小化到托盘
     autoPlayOnStart: boolean; // 启动时自动恢复播放
+    lastSeenVersion: string; // 最近一次展示"版本更新说明"的应用版本(更新后首次启动弹窗用)
 }
 
 const DEFAULT_BASS: BassSourceState = {
@@ -88,6 +89,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     shortcuts: { ...DEFAULT_SHORTCUTS },
     closeToTray: false,
     autoPlayOnStart: true,
+    lastSeenVersion: '',
 };
 
 let settingsCache: AppSettings | null = null;
