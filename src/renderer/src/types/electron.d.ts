@@ -123,6 +123,13 @@ export interface IElectronAPI {
         getProfile: (userId: string) => Promise<UserInfo>;
         getPlaylists: (userId: string) => Promise<PlaylistInfo[]>;
         getFavSongs: (userId: string) => Promise<any[]>;
+        getFavoriteSongs: (userId?: string) => Promise<any[]>;
+        addFavoriteSong: (song: any) => Promise<{ status: string; liked?: boolean; message?: string | null }>;
+        removeFavoriteSong: (source: string, id: string) => Promise<{ status: string; liked?: boolean; message?: string | null }>;
+        getCachedLikedSongs: (userId?: string) => Promise<any[]>;
+        refreshLikedSongs: (userId?: string) => Promise<any[] | null>;
+        checkLikedSongs: (songs: Array<{ source?: string; id?: string }>) => Promise<Record<string, boolean>>;
+        clearLikedCache: (userId?: string) => Promise<boolean>;
         updateProfile: (payload: Partial<UserInfo>) => Promise<UserInfo>;
         getRecentSongs: (userId: string) => Promise<any[]>;
         addRecentSong: (userId: string, song: any) => Promise<any>;
@@ -130,10 +137,11 @@ export interface IElectronAPI {
         getSubscriptions: (targetUserId: string) => Promise<{ status: string; fans: number; subs: number; fans_list?: string[]; subs_list?: string[]; can_view_subs?: boolean }>;
     };
     // Cache Control
-    getCacheInfo: () => Promise<{ path: string; size: string; persistCache: boolean }>;
+    getCacheInfo: () => Promise<{ path: string; size: string; persistCache: boolean; lyricCacheSize: string }>;
     setCachePersist: (persist: boolean) => Promise<void>;
     openCacheFolder: () => Promise<void>;
     clearCache: () => Promise<void>;
+    clearLyricCache: () => Promise<{ size: string }>;
     changeCacheLocation: (newPath: string) => Promise<{ success: boolean; message: string; path?: string }>;
     selectDirectory: () => Promise<string | null>;
     selectDirectories: () => Promise<string[]>;
@@ -146,8 +154,8 @@ export interface IElectronAPI {
     };
     // Settings
     settings: {
-        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings; closeToTray: boolean; autoPlayOnStart: boolean }>;
-        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings; closeToTray: boolean; autoPlayOnStart: boolean }>) => Promise<any>;
+        getAll: () => Promise<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings; pluginQualityMap: Record<string, string>; closeToTray: boolean; autoPlayOnStart: boolean }>;
+        set: (settings: Partial<{ persistCache: boolean; theme: 'dark' | 'light'; accentColor: string; playlistPagingMode: 'infinite' | 'pagination'; openPlayerOnSongClick: boolean; bass: BassSourceState; audioOutput: AudioOutputConfig; shortcuts: ShortcutBindings; pluginQualityMap: Record<string, string>; closeToTray: boolean; autoPlayOnStart: boolean }>) => Promise<any>;
         getTheme: () => Promise<'dark' | 'light'>;
         setTheme: (theme: 'dark' | 'light') => Promise<void>;
         getAccentColor: () => Promise<string>;

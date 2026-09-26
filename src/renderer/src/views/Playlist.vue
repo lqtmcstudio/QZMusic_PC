@@ -379,14 +379,24 @@ const fetchLikedPlaylist = async (): Promise<AppPlaylist> => {
   if (!userId) {
     throw new Error('Not logged in')
   }
-  const [profileResult, favResult] = await Promise.allSettled([
+  const [profileResult, favResult, refreshResult] = await Promise.allSettled([
     window.electronAPI.user.getProfile(userId),
     window.electronAPI.user.getFavSongs(userId),
+    // 打开喜欢歌页面时全量拉取并写入本地缓存(离线时返回 null)
+    window.electronAPI.user.refreshLikedSongs(userId),
   ])
   const profile = profileResult.status === 'fulfilled' ? profileResult.value : null
-  const list = favResult.status === 'fulfilled'
-    ? (favResult.value || []).map(normalizePublicSong).filter((song) => song.id && song.source)
-    : []
+
+  // 优先用刷新结果; 智网时回退到接口/本地缓存
+  let rawList: any[] = []
+  if (refreshResult.status === 'fulfilled' && Array.isArray(refreshResult.value)) {
+    rawList = refreshResult.value
+  } else if (favResult.status === 'fulfilled' && Array.isArray(favResult.value)) {
+    rawList = favResult.value
+  } else {
+    rawList = (await window.electronAPI.user.getCachedLikedSongs(userId)) || []
+  }
+  const list = rawList.map(normalizePublicSong).filter((song) => song.id && song.source)
   const displayName = profile?.nickname || profile?.username || (route.name === 'UserLikedPlaylist' ? '用户' : '我')
   return {
     id: userId,

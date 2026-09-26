@@ -5,6 +5,15 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { QzpController } from './qzpController'
 import { startProxyServer, cleanupCache, getCacheDir, getCacheSize, setPersistCache, clearCacheNow, refreshCacheDir } from './proxyServer'
+import { withLyricCache, clearLyricCache, formatLyricCacheSize } from './lyricCache'
+import {
+    getCachedLikedSongs,
+    refreshLikedSongs,
+    checkLikedSongs,
+    applyAddLikedSong,
+    applyRemoveLikedSong,
+    clearLikedCache,
+} from './likedCache'
 import { PluginSystem } from './pluginSystem'
 import { loadSettings, saveSettings, getSetting, AppSettings, BassSourceState, AudioOutputConfig } from './settingsStore'
 import {
@@ -31,6 +40,9 @@ import {
     uploadImage,
     getRecentSongs,
     addRecentSong,
+    getFavoriteSongs,
+    addFavoriteSong,
+    removeFavoriteSong,
     getFavoritePlaylists,
     collectPlaylist,
     uncollectPlaylist,
@@ -366,6 +378,11 @@ ipcMain.handle(
     async (_event, pluginId: string, method: string, args: any[]) => {
         const plugin = new PluginSystem(pluginId)
         try {
+            // 歌词走缓存: 命中直接返回, 未命中拉取后写入
+            if (method === 'getLyric') {
+                const id = String(args?.[0] ?? '')
+                return await withLyricCache(pluginId, id, () => plugin.call(method, args))
+            }
             return await plugin.call(method, args)
         } catch (err: any) {
             return {
@@ -469,6 +486,40 @@ ipcMain.handle('user:getRecentSongs', (_event, userId: string) => {
 })
 ipcMain.handle('user:addRecentSong', (_event, userId: string, song: any) => {
     return addRecentSong(String(userId || ''), song || {})
+})
+
+// Favorite Songs
+ipcMain.handle('user:getFavSongsMine', (_event, userId?: string) => {
+    return getFavoriteSongs(userId ? String(userId) : undefined)
+})
+ipcMain.handle('user:addFavSong', async (_event, song: any) => {
+    const result = await addFavoriteSong(song || {})
+    if (result?.status === 'success') {
+        applyAddLikedSong(song || {})
+    }
+    return result
+})
+ipcMain.handle('user:removeFavSong', async (_event, source: string, id: string) => {
+    const result = await removeFavoriteSong(String(source || ''), String(id || ''))
+    if (result?.status === 'success') {
+        applyRemoveLikedSong(String(source || ''), String(id || ''))
+    }
+    return result
+})
+
+// Liked songs local cache (离线可用)
+ipcMain.handle('liked:getCached', (_event, userId?: string) => {
+    return getCachedLikedSongs(userId ? String(userId) : undefined)
+})
+ipcMain.handle('liked:refresh', (_event, userId?: string) => {
+    return refreshLikedSongs(userId ? String(userId) : undefined)
+})
+ipcMain.handle('liked:check', (_event, songs: Array<{ source?: string; id?: string }>) => {
+    return checkLikedSongs(Array.isArray(songs) ? songs : [])
+})
+ipcMain.handle('liked:clear', (_event, userId?: string) => {
+    clearLikedCache(userId ? String(userId) : undefined)
+    return true
 })
 
 // Favorite Playlists
@@ -600,8 +651,14 @@ ipcMain.handle('cache:getInfo', () => {
     return {
         path: settings.cachePath || getCacheDir(), // Use setting or fallback
         size: getCacheSize(),
-        persistCache: settings.persistCache
+        persistCache: settings.persistCache,
+        lyricCacheSize: formatLyricCacheSize(),
     }
+})
+
+ipcMain.handle('cache:clearLyric', () => {
+    clearLyricCache()
+    return { size: formatLyricCacheSize() }
 })
 
 ipcMain.handle('cache:setPersist', (_, persist: boolean) => {

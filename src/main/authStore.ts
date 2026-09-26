@@ -273,7 +273,9 @@ export async function qzFetch(pathname: string, init: RequestInit = {}): Promise
         throw new Error(message || `Request failed: ${resp.status}`)
     }
     if (resp.status === 204) return null
-    return resp.json()
+    const data = await resp.json()
+    console.log(data)
+    return data
 }
 
 function mimeForImage(filePath: string): string {
@@ -474,6 +476,89 @@ export async function uncollectPlaylist(playlistId: string, source = ''): Promis
     return qzFetch(`/user/${encodeURIComponent(userId)}/fav/playlists?${query.toString()}`, {
         method: 'DELETE',
     })
+}
+
+// === Favorite Songs ===
+
+export interface FavoriteSongStatus {
+    status: string
+    liked?: boolean
+    message?: string | null
+}
+
+function normalizeFavoriteSongPayload(song: any): Record<string, any> {
+    return {
+        id: String(song?.id ?? '').trim(),
+        name: String(song?.name ?? ''),
+        artists: String(song?.artists ?? ''),
+        source: String(song?.source ?? '').trim(),
+        pic: String(song?.pic ?? ''),
+        sPic: String(song?.sPic ?? song?.pic ?? ''),
+        mPic: String(song?.mPic ?? song?.pic ?? ''),
+        albumName: String(song?.albumName ?? ''),
+        albumId: String(song?.albumId ?? ''),
+        interval: String(song?.interval ?? '--/--'),
+        playCount: Number(song?.playCount ?? 0) || 0,
+        qualities: song?.qualities && typeof song.qualities === 'object' ? { ...song.qualities } : {},
+        ...(song?.quality ? { quality: String(song.quality) } : {}),
+    }
+}
+
+export async function getFavoriteSongs(userId?: string): Promise<any[]> {
+    const state = loadAuthState()
+    const targetUserId = userId || state.userInfo?.id
+    if (!targetUserId) throw new Error('Not logged in')
+    const result = await qzFetch(`/user/${encodeURIComponent(targetUserId)}/fav/songs`)
+    return Array.isArray(result) ? result : []
+}
+
+export async function addFavoriteSong(song: any): Promise<FavoriteSongStatus> {
+    const state = loadAuthState()
+    const userId = state.userInfo?.id
+    if (!userId) throw new Error('Not logged in')
+    return qzFetch(`/user/${encodeURIComponent(userId)}/fav/songs`, {
+        method: 'POST',
+        body: JSON.stringify(normalizeFavoriteSongPayload(song)),
+    })
+}
+
+export async function removeFavoriteSong(source: string, id: string): Promise<FavoriteSongStatus> {
+    const state = loadAuthState()
+    const userId = state.userInfo?.id
+    if (!userId) throw new Error('Not logged in')
+    const query = new URLSearchParams({
+        source: String(source || '').trim(),
+        id: String(id || '').trim(),
+    })
+    return qzFetch(`/user/${encodeURIComponent(userId)}/fav/songs?${query.toString()}`, {
+        method: 'DELETE',
+    })
+}
+
+/**
+ * 批量查询多首歌是否已喜欢。
+ * 返回以 `source:id` 为 key 的布尔映射。
+ */
+export async function checkFavoriteSongs(
+    items: Array<{ source?: string; id?: string }>
+): Promise<Record<string, boolean>> {
+    const state = loadAuthState()
+    const userId = state.userInfo?.id
+    if (!userId) throw new Error('Not logged in')
+    const payload = {
+        items: (items || [])
+            .map((song) => ({
+                source: String(song?.source ?? '').trim(),
+                id: String(song?.id ?? '').trim(),
+            }))
+            .filter((song) => song.source && song.id && song.source !== 'local'),
+    }
+    const result = await qzFetch(`/user/${encodeURIComponent(userId)}/fav/songs/contains`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
+    const liked = result && typeof result === 'object' ? (result as any).liked : null
+    return liked && typeof liked === 'object' ? liked : {}
 }
 
 // === User Follow ===

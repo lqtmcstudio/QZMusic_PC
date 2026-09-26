@@ -77,6 +77,20 @@
                   </button>
                 </div>
               </div>
+
+              <!-- 歌词缓存 -->
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-label">歌词缓存</div>
+                  <div class="setting-desc">{{ cacheInfo.lyricCacheSize || '计算中...' }}</div>
+                </div>
+                <div class="setting-control">
+                  <button class="action-btn danger" @click="clearLyricCache">
+                    <Icon icon="lucide:trash-2" />
+                    清理歌词缓存
+                  </button>
+                </div>
+              </div>
             </div>
 
             <!-- 插件管理 -->
@@ -749,6 +763,7 @@ const appearance = reactive({
 const cacheInfo = reactive({
   path: '',
   size: '',
+  lyricCacheSize: '',
 });
 
 const loadPlugins = async () => {
@@ -824,6 +839,7 @@ const loadCacheInfo = async () => {
     const info = await window.electronAPI.getCacheInfo();
     cacheInfo.path = info.path;
     cacheInfo.size = info.size;
+    cacheInfo.lyricCacheSize = info.lyricCacheSize;
     settings.persistCache = info.persistCache;
   }
 };
@@ -1153,6 +1169,17 @@ const clearCache = async () => {
   if (window.electronAPI) {
     await window.electronAPI.clearCache();
     await loadCacheInfo();
+  }
+};
+
+const clearLyricCache = async () => {
+  if (!window.electronAPI?.clearLyricCache) return;
+  try {
+    await window.electronAPI.clearLyricCache();
+    await loadCacheInfo();
+    ElMessage.success('歌词缓存已清理');
+  } catch {
+    ElMessage.error('歌词缓存清理失败');
   }
 };
 

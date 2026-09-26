@@ -48,6 +48,8 @@ export interface AppSettings {
     // Behavior
     closeToTray: boolean; // 关闭时最小化到托盘
     autoPlayOnStart: boolean; // 启动时自动恢复播放
+    // 插件音质偏好: source(插件id) -> qualityId, 与手机端 SettingsManager.pluginQualityMap 对应
+    pluginQualityMap: Record<string, string>;
 }
 
 const DEFAULT_BASS: BassSourceState = {
@@ -86,8 +88,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     bass: { ...DEFAULT_BASS },
     audioOutput: { ...DEFAULT_AUDIO_OUTPUT },
     shortcuts: { ...DEFAULT_SHORTCUTS },
+    pluginQualityMap: {},
     closeToTray: false,
-    autoPlayOnStart: true,
+    autoPlayOnStart: true
 };
 
 let settingsCache: AppSettings | null = null;

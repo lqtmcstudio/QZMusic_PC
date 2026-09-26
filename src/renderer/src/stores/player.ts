@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, shallowRef, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { Song } from '../types/song';
 import { parseLyric } from '../utils/lyricUtil'
@@ -49,13 +49,229 @@ export const usePlayerStore = defineStore('player', () => {
     const isPlayerFullScreen = ref(false);
     const hideLyricView = ref(false);
 
+    // Quality State (对齐手机端 Music.autoGetQuality + SettingsManager.pluginQualityMap)
+    const pluginQualityMap = ref<Record<string, string>>({});
+    const pluginManifests = ref<Record<string, { name?: string; quality: { id: string; name?: string; ui?: string }[] }>>({});
+    const currentQuality = ref<string>('');
+
+    // Like State
+    const likedSongKeys = ref<Set<string>>(new Set());
+    // 当前歌曲是否已喜欢(由单曲查询/本地缓存/乐观更新维护)
+    const currentSongLiked = ref(false);
+
+    const makeSongKey = (song?: { source?: string; id?: any } | null) => {
+        if (!song) return '';
+        return `${song.source || ''}:${song.id ?? ''}`;
+    };
+
+    const isCurrentSongLiked = computed(() => currentSongLiked.value);
+
+    const loadQualityManifests = async () => {
+        try {
+            const plugins = await window.electronAPI?.plugin?.getAll?.();
+            const map: Record<string, { name?: string; quality: { id: string; name?: string; ui?: string }[] }> = {};
+            for (const plugin of (plugins || []) as any[]) {
+                const qualities = Array.isArray(plugin?.quality)
+                    ? plugin.quality.filter((q: any) => q && q.id).map((q: any) => ({
+                        id: String(q.id),
+                        name: q.name ? String(q.name) : undefined,
+                        ui: q.ui ? String(q.ui) : undefined,
+                    }))
+                    : [];
+                map[String(plugin?.id)] = {
+                    name: plugin?.name ? String(plugin.name) : undefined,
+                    quality: qualities,
+                };
+            }
+            pluginManifests.value = map;
+        } catch (error) {
+            console.warn('[Player] Failed to load plugin manifests:', error);
+        }
+    };
+
+    /**
+     * 自动音质选择, 复刻手机端 Music.autoGetQuality().
+     * 规则: 优先用户对当前 source 设置的音质; 若歌曲不支持则按插件音质列表向上回退;
+     * 未设置时取插件列表中首个歌曲支持的音质, 否则退回歌曲支持的第一个音质。
+     */
+    const autoGetQuality = (song: Song | null = currentSong.value): string => {
+        if (!song) return '128k';
+        try {
+            if (song.source === 'local') {
+                return Object.keys(song.qualities || {})[0] || '128k';
+            }
+            const supportedIds = Object.keys(song.qualities || {});
+            if (supportedIds.length === 0) return '128k';
+
+            const pluginQualities = pluginManifests.value[song.source]?.quality?.map((q) => q.id);
+            if (!pluginQualities || pluginQualities.length === 0) return supportedIds[0];
+
+            const currentSetting = pluginQualityMap.value[song.source] || '';
+            const currentIndex = pluginQualities.indexOf(currentSetting);
+            if (currentIndex === -1) {
+                return pluginQualities.find((id) => supportedIds.includes(id)) || supportedIds[0];
+            }
+            if (supportedIds.includes(currentSetting)) return currentSetting;
+            for (let i = currentIndex - 1; i >= 0; i--) {
+                const qId = pluginQualities[i];
+                if (supportedIds.includes(qId)) return qId;
+            }
+            return supportedIds[0];
+        } catch {
+            return '128k';
+        }
+    };
+
+    // 当前歌曲可切换的音质列表(按插件声明顺序, 与手机端 qualityList 一致)
+    const availableQualities = computed(() => {
+        const song = currentSong.value;
+        if (!song || song.source === 'local') return [];
+        return pluginManifests.value[song.source]?.quality || [];
+    });
+
+    const loadQualitySetting = async () => {
+        try {
+            const settings = await window.electronAPI?.settings?.getAll?.();
+            pluginQualityMap.value = { ...(settings?.pluginQualityMap || {}) };
+        } catch (error) {
+            console.warn('[Player] Failed to load quality setting:', error);
+        }
+    };
+
+    const setQuality = async (qualityId: string) => {
+        const song = currentSong.value;
+        if (!song || song.source === 'local') return;
+        const nextMap = { ...pluginQualityMap.value, [song.source]: qualityId };
+        pluginQualityMap.value = nextMap;
+        try {
+            // 传纯对象: 响应式 Proxy 无法通过 Electron 结构化克隆
+            await window.electronAPI?.settings?.set?.({ pluginQualityMap: { ...nextMap } });
+        } catch (error) {
+            console.warn('[Player] Failed to save quality setting:', error);
+        }
+        // 重新加载当前歌曲以应用新音质(利用缓存 key 中 quality 的差异重新拉流)
+        currentQuality.value = qualityId;
+        await playSong({ ...song }, isPlaying.value, currentIndex.value);
+    };
+    // --- Liked Songs (本地缓存 + 单曲查询) ---
+    // 从本地缓存载入完整喜欢列表(离线可用); 不做网络请求。
+    const loadLikedSongsFromCache = async () => {
+        try {
+            let auth: ReturnType<typeof useAuthStore>;
+            try { auth = useAuthStore(); } catch { return; }
+            const userId = auth.state.userInfo?.id;
+            if (!userId || !window.electronAPI?.user?.getCachedLikedSongs) {
+                likedSongKeys.value = new Set();
+                return;
+            }
+            const list = await window.electronAPI.user.getCachedLikedSongs(userId);
+            updateLikedKeysFromList(list);
+        } catch (error) {
+            console.warn('[Player] Failed to load liked songs from cache:', error);
+        }
+    };
+
+    const updateLikedKeysFromList = (list: any[]) => {
+        const keys = new Set<string>();
+        for (const song of (list || []) as any[]) {
+            if (song?.source && song.source !== 'local' && song.id) {
+                keys.add(makeSongKey({ source: song.source, id: song.id }));
+            }
+        }
+        likedSongKeys.value = keys;
+    };
+
+    // 切换歌曲时: 仅查询当前歌曲的喜欢状态(网络优先, 离线回退缓存)
+    const checkCurrentSongLiked = async (song: Song | null = currentSong.value) => {
+        if (!song || !song.id || song.source === 'local') {
+            currentSongLiked.value = false;
+            return;
+        }
+        try {
+            const result = await window.electronAPI?.user?.checkLikedSongs?.([
+                { source: song.source, id: song.id },
+            ]);
+            const key = makeSongKey(song);
+            if (result && typeof result === 'object' && key in result) {
+                currentSongLiked.value = Boolean(result[key]);
+                return;
+            }
+        } catch (error) {
+            console.warn('[Player] Failed to check liked state:', error);
+        }
+        // 回退到本地列表
+        currentSongLiked.value = likedSongKeys.value.has(makeSongKey(song));
+    };
+
+    const toggleLike = async (song: Song | null = currentSong.value) => {
+        if (!song || !song.id) return;
+        if (song.source === 'local') {
+            ElMessage.warning('本地歌曲暂不支持喜欢');
+            return;
+        }
+        let auth: ReturnType<typeof useAuthStore>;
+        try { auth = useAuthStore(); } catch { ElMessage.warning('请先登录后再喜欢歌曲'); return; }
+        if (!auth.state.userInfo?.id) {
+            ElMessage.warning('请先登录后再喜欢歌曲');
+            return;
+        }
+
+        const key = makeSongKey(song);
+        const wasLiked = key === makeSongKey(currentSong.value)
+            ? currentSongLiked.value
+            : likedSongKeys.value.has(key);
+        const previous = likedSongKeys.value;
+
+        // 乐观更新
+        const next = new Set(previous);
+        if (wasLiked) next.delete(key);
+        else next.add(key);
+        likedSongKeys.value = next;
+        if (key === makeSongKey(currentSong.value)) {
+            currentSongLiked.value = !wasLiked;
+        }
+
+        try {
+            if (wasLiked) {
+                await window.electronAPI.user.removeFavoriteSong(String(song.source), String(song.id));
+            } else {
+                // 必须传纯对象: 响应式 Proxy 无法通过 Electron 结构化克隆
+                await window.electronAPI.user.addFavoriteSong({
+                    id: song.id,
+                    name: song.name,
+                    artists: song.artists,
+                    source: song.source,
+                    pic: song.pic || song.mPic || song.sPic || '',
+                    sPic: song.sPic || song.pic || '',
+                    mPic: song.mPic || song.pic || '',
+                    albumName: song.albumName,
+                    albumId: song.albumId,
+                    interval: song.interval,
+                    qualities: song.qualities ? { ...song.qualities } : undefined,
+                    quality: song.quality,
+                });
+            }
+        } catch (error) {
+            console.log(error)
+            likedSongKeys.value = previous;
+            if (key === makeSongKey(currentSong.value)) {
+                currentSongLiked.value = wasLiked;
+            }
+            console.warn('[Player] Failed to sync favorite song:', error);
+            ElMessage.error(`喜欢同步失败，请稍后重试`);
+        }
+    };
+
     // Playlist State
     const savedPlaylist = localStorage.getItem('qz-player-playlist');
     const savedIndex = localStorage.getItem('qz-player-index');
 
     const playlist = ref<Song[]>(savedPlaylist ? JSON.parse(savedPlaylist) : []);
     const currentIndex = ref(savedIndex ? Number(savedIndex) : -1);
-    const playMode = ref<PlayMode>(PlayMode.List);
+    const savedPlayMode = localStorage.getItem('qz-player-play-mode') as PlayMode | null;
+    const playMode = ref<PlayMode>(
+        savedPlayMode && Object.values(PlayMode).includes(savedPlayMode) ? savedPlayMode : PlayMode.List
+    );
     const savedAddMode = localStorage.getItem('qz-player-add-mode');
     const addListMode = ref<'replace' | 'append'>((savedAddMode as 'replace' | 'append') || 'replace');
     const openPlayerOnSongClick = ref(false);
@@ -196,6 +412,23 @@ export const usePlayerStore = defineStore('player', () => {
         window.setInterval(() => {
             tickHeartbeat().catch(console.error);
         }, 1000);
+
+        // 音质配置 + 插件清单 + 喜欢列表(本地缓存)初始化
+        loadQualityManifests().catch(console.warn);
+        loadQualitySetting().catch(console.warn);
+        // 仅从本地缓存载入喜欢状态, 不在此处全量拉取
+        loadLikedSongsFromCache().then(() => {
+            checkCurrentSongLiked().catch(console.warn);
+        }).catch(console.warn);
+        window.electronAPI?.plugin?.onChanged?.(() => {
+            loadQualityManifests().catch(console.warn);
+        });
+        window.electronAPI?.auth?.onChanged?.(() => {
+            // 登录态变化: 重新载入缓存并查询当前歌曲
+            loadLikedSongsFromCache().then(() => {
+                checkCurrentSongLiked().catch(console.warn);
+            }).catch(console.warn);
+        });
     }
 
     // --- Actions ---
@@ -302,8 +535,9 @@ export const usePlayerStore = defineStore('player', () => {
             // Get URL (Cache -> Network)
             let playUrl = song.url; // 本地文件路径(local)
             if (song.source && song.source !== 'local') {
-                // Remote: 走本地代理按 source+id 取
-                const quality = 'hires';
+                // Remote: 走本地代理按 source+id 取, 音质由 autoGetQuality 自动选择
+                const quality = autoGetQuality(song);
+                currentQuality.value = quality;
                 playUrl = `http://localhost:5266/music?source=${song.source}&id=${song.id}&quality=${quality}`;
                 console.log('[Player] Using Proxy:', playUrl);
             }
@@ -499,6 +733,21 @@ export const usePlayerStore = defineStore('player', () => {
         } else if (removedCurrent) {
             currentIndex.value = Math.min(index, playlist.value.length - 1);
             await playSong(playlist.value[currentIndex.value], true, currentIndex.value);
+        }
+    };
+
+    const clearQueue = async () => {
+        if (playlist.value.length === 0) return;
+        playlist.value = [];
+        currentIndex.value = -1;
+        currentSong.value = null;
+        isPlaying.value = false;
+        lyrics.value = { lines: [] };
+        await window.electronAPI.qzplayer.stop();
+        syncDummyAudioState(false);
+        const together = listenTogether();
+        if (together?.canControl && !together.isApplyingRemote) {
+            together.sendSetList([], 0);
         }
     };
 
@@ -738,14 +987,23 @@ export const usePlayerStore = defineStore('player', () => {
         localStorage.setItem('qz-player-add-mode', newMode);
     });
 
+    watch(playMode, (mode) => {
+        localStorage.setItem('qz-player-play-mode', mode);
+    });
+
     watch([currentTime, duration, isPlaying, currentSong], syncTaskbarProgress, { immediate: true });
+
+    // 切换歌曲时: 用单曲查询刷新当前歌曲的喜欢状态(不用全量拉取)
+    watch(() => [currentSong.value?.source, currentSong.value?.id], () => {
+        checkCurrentSongLiked().catch(console.warn);
+    });
 
     // 后台保活: 播放时阻止系统休眠/息屏, 避免黑屏后音频中断
     watch(isPlaying, (playing) => {
         window.electronAPI?.setKeepAwake?.(Boolean(playing)).catch(() => {});
     }, { immediate: true });
 
-    // Restore initial state (without playing)
+    // Restore initial state: 重新载入上次歌曲, 是否自动播放由设置 autoPlayOnStart 决定
     if (playlist.value.length > 0 && currentIndex.value >= 0 && currentIndex.value < playlist.value.length) {
         const restoredSong = playlist.value[currentIndex.value];
         if (restoredSong) {
@@ -774,6 +1032,7 @@ export const usePlayerStore = defineStore('player', () => {
         playNextInQueue,
         appendToQueue,
         removeFromQueue,
+        clearQueue,
         moveQueueItem,
         applyTogetherState,
         next,
@@ -787,6 +1046,19 @@ export const usePlayerStore = defineStore('player', () => {
         fetchLyrics,
         addListMode,
         playFromList,
-        hideLyricView
+        hideLyricView,
+        // Quality
+        autoGetQuality,
+        availableQualities,
+        currentQuality,
+        pluginQualityMap,
+        pluginManifests,
+        setQuality,
+        loadQualityManifests,
+        // Like
+        isCurrentSongLiked,
+        toggleLike,
+        loadLikedSongsFromCache,
+        checkCurrentSongLiked,
     };
 });

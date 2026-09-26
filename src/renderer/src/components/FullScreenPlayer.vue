@@ -24,12 +24,22 @@
         :pause-shrink-aspect="0.75"
       />
       <div class="controls">
-        <MusicInfo
-            :name="playerStore.currentSong?.name"
-            :artists="playerStore.currentSong?.artists?.split('、')??undefined"
-            class="music-info-container"
-        />
-        <div>
+        <div class="music-info-row">
+          <MusicInfo
+              :name="playerStore.currentSong?.name"
+              :artists="playerStore.currentSong?.artists?.split('、')??undefined"
+              class="music-info-container"
+          />
+          <button
+              class="meta-like"
+              :class="{ liked: playerStore.isCurrentSongLiked }"
+              :title="playerStore.isCurrentSongLiked ? '取消喜欢' : '喜欢'"
+              @click.stop="playerStore.toggleLike()"
+          >
+            <Icon :icon="playerStore.isCurrentSongLiked ? 'ph:heart-fill' : 'ph:heart-bold'" />
+          </button>
+        </div>
+        <div class="progress-block">
             <BouncingSlider
                 :value="playerStore.currentTime"
                 :min="0"
@@ -41,6 +51,14 @@
                 <div class="time-label">
                     {{ formatTime(playerStore.currentTime) }}
                 </div>
+                <button
+                    v-if="qualityTag"
+                    class="meta-quality"
+                    @click.stop="openQualityDialog"
+                >
+                  <img v-if="qualityIsLossless" :src="IconLossless" class="quality-icon" alt="" />
+                  <span>{{ qualityTag }}</span>
+                </button>
                 <div
                     class="time-label remaining"
                     @click="showRemaining = !showRemaining"
@@ -100,7 +118,17 @@
           <div v-if="showPlaylistPanel" class="playlist-panel">
             <div class="playlist-header">
               <span class="playlist-title">播放队列</span>
-              <span class="playlist-count">{{ playerStore.playlist.length }} 首</span>
+              <div class="playlist-header-actions">
+                <span class="playlist-count">{{ playerStore.playlist.length }} 首</span>
+                <button
+                  class="playlist-clear"
+                  title="清空播放队列"
+                  :disabled="playerStore.playlist.length === 0"
+                  @click.stop="playerStore.clearQueue()"
+                >
+                  <Icon icon="lucide:trash-2" />
+                </button>
+              </div>
             </div>
             <PlayerQueueList class="playlist-scroll" variant="fullscreen" />
           </div>
@@ -142,6 +170,32 @@
     </div>
 
     <canvas ref="canvasRef" class="spectrum-canvas"></canvas>
+
+    <!-- 音质选择弹窗 (全屏居中 + mask) -->
+    <Teleport to="body">
+      <Transition name="quality-mask">
+        <div v-if="showQualityDialog" class="quality-mask" @click="closeQualityDialog">
+          <div class="quality-dialog" @click.stop>
+            <div class="quality-dialog-title">
+              插件音质选择-{{ pluginName }}
+            </div>
+            <div class="quality-dialog-list">
+              <div
+                  v-for="q in qualityOptions"
+                  :key="q.id"
+                  class="quality-row"
+                  :class="{ current: q.id === playerStore.pluginQualityMap[currentSource] }"
+                  @click="selectQuality(q.id)"
+              >
+                <span class="quality-row-badge" :class="{ supported: q.supported }">{{ q.ui || q.name }}</span>
+                <span class="quality-row-name">{{ q.supported ? q.name + '(支持)' : q.name }}</span>
+                <span v-if="q.id === playerStore.pluginQualityMap[currentSource]" class="quality-row-default">默认</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -171,12 +225,98 @@ import IconShuffleActive from '@assets/shuffle-active.svg';
 import IconRepeat from '@assets/repeat.svg';
 import IconRepeatOneActive from '@assets/repeat-one-active.svg';
 import IconRepeatActive from '@assets/repeat-active.svg';
+import IconLossless from '@assets/icon_lossless.svg';
+import { Icon } from '@iconify/vue';
 
 const lyricPlayerRef = ref<LyricPlayerRef>()
 const bgRef = ref<BackgroundRenderRef>();
 
 const showRemaining = ref(false);
 const showPlaylistPanel = ref(false);
+const showQualityDialog = ref(false);
+
+// --- 音质标签 ---
+// 复刻手机端 AppleMusicLikeProgress.translateQuality: 将音质 id 映射为展示文案。
+const translateQuality = (quality?: string | null): string => {
+  switch ((quality || '').toLowerCase()) {
+    case 'master':
+    case 'jymaster':
+    case 'tape_clear':
+    case 'tape':
+      return '至臻母带';
+    case 'jyeffect':
+      return '高清臻音';
+    case 'sky':
+      return '沉浸环绕声';
+    case 'atmos':
+    case 'dolby':
+    case 'db':
+      return '全景声';
+    case 'atmos_plus':
+      return '全景声+';
+    case 'standard':
+    case '128k':
+    case 'medium':
+      return '标准';
+    case 'exhigh':
+    case '320k':
+    case 'higher':
+      return '高品质';
+    case 'highest':
+      return '超高品质';
+    default:
+      return quality || '';
+  }
+};
+
+// 当前生效的音质(优先用 autoGetQuality 结果)
+const effectiveQuality = computed(() => playerStore.autoGetQuality());
+
+const qualityTag = computed(() => {
+  const q = effectiveQuality.value;
+  if (!q) return '';
+  const lower = q.toLowerCase();
+  // 无损类音质用固定文案 + 波形图标
+  if (['hires', 'zq', 'flac24bit'].includes(lower)) return '高解析度无损';
+  if (['lossless', 'flac', 'sq'].includes(lower)) return '无损';
+  const translated = translateQuality(q);
+  return translated;
+});
+
+const qualityIsLossless = computed(() => {
+  const lower = effectiveQuality.value.toLowerCase();
+  return ['hires', 'zq', 'flac24bit', 'lossless', 'flac', 'sq'].includes(lower);
+});
+
+const currentSource = computed(() => playerStore.currentSong?.source || '');
+const pluginName = computed(() => playerStore.pluginManifests?.[currentSource.value]?.name || currentSource.value);
+
+// 与手机端 rememberQualityList 一致: 列出插件全部音质, 歌曲支持的标记 (支持)
+const qualityOptions = computed(() => {
+  const song = playerStore.currentSong;
+  const source = song?.source;
+  if (!song || !source || source === 'local') return [];
+  const qualities = playerStore.availableQualities || [];
+  const supported = song.qualities || {};
+  return qualities.map((q: any) => ({
+    ...q,
+    supported: Object.prototype.hasOwnProperty.call(supported, q.id),
+  }));
+});
+
+const openQualityDialog = () => {
+  if (!qualityTag.value) return;
+  showQualityDialog.value = true;
+};
+
+const closeQualityDialog = () => {
+  showQualityDialog.value = false;
+};
+
+const selectQuality = async (qualityId: string) => {
+  showQualityDialog.value = false;
+  await playerStore.setQuality(qualityId);
+};
 
 const formatTime = (miliseconds: number) => {
   const seconds = miliseconds / 1000;
@@ -309,12 +449,20 @@ watch(isPlayerFullScreen, (val) => {
   }
 });
 
+const handleQualityKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && showQualityDialog.value) {
+    showQualityDialog.value = false;
+  }
+};
+
 onMounted(() => {
   if (isPlayerFullScreen.value) loop();
+  window.addEventListener('keydown', handleQualityKeydown);
 });
 
 onUnmounted(() => {
   if (animationId) cancelAnimationFrame(animationId);
+  window.removeEventListener('keydown', handleQualityKeydown);
 });
 
 const toggleFullScreen = () => {
@@ -526,7 +674,6 @@ const togglePlaylistPanel = () => {
 	align-items: center;
 	font-weight: 500;
 	font-size: max(1.2vh, 0.8em);
-	opacity: 0.5;
 	margin-top: 4px;
 
 	@media screen and (max-height: 768px) {
@@ -537,8 +684,8 @@ const togglePlaylistPanel = () => {
 		flex: 1;
 	}
 
-	& > *:nth-child(2) {
-		flex: 0;
+	& > .meta-quality {
+		flex: 0 0 auto;
 	}
 
 	& > *:last-child {
@@ -549,6 +696,7 @@ const togglePlaylistPanel = () => {
 .time-label {
     font-variant-numeric: tabular-nums;
     color: white;
+    opacity: 0.5;
 }
 
 .time-label.remaining {
@@ -556,10 +704,184 @@ const togglePlaylistPanel = () => {
     user-select: none;
 }
 
-.music-info-container {
+.music-info-row {
     width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
     margin-bottom: 2vh;
 }
+
+.music-info-container {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+}
+
+.meta-like {
+	display: grid;
+	place-items: center;
+	background: transparent;
+	border: 0;
+	padding: 0;
+	cursor: pointer;
+	color: rgba(255, 255, 255, 0.58);
+	font-size: 1.4em;
+	flex: 0 0 auto;
+	transition: color 160ms ease, transform 160ms ease;
+}
+
+.meta-like:hover {
+	color: rgba(255, 255, 255, 0.9);
+}
+
+.meta-like:active {
+	transform: scale(0.9);
+}
+
+.meta-like.liked {
+	color: #fff;
+}
+
+/* 音质标签: 仿照 Android AppleMusicLikeProgress 的白色半透明胶囊 */
+.meta-quality {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35em;
+	padding: 0.45em 0.75em;
+	border-radius: 8px;
+	border: 0;
+	cursor: pointer;
+	background: rgba(255, 255, 255, 0.2);
+	color: #fff;
+	font-size: max(1.2vh, 0.8em);
+	font-weight: 100;
+	line-height: 1;
+	white-space: nowrap;
+	transition: background 160ms ease;
+  mix-blend-mode: plus-lighter;
+}
+
+.quality-icon {
+	width: 1.15em;
+	height: 0.75em;
+	display: block;
+	flex: 0 0 auto;
+}
+
+/* 音质选择弹窗 (全屏居中 + mask) */
+.quality-mask {
+	position: fixed;
+	inset: 0;
+	z-index: 10050;
+	display: grid;
+	place-items: center;
+	background: rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+
+.quality-dialog {
+	width: min(420px, 82vw);
+	max-height: min(70vh, 560px);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding: 1em 0.6em 0.7em;
+	border-radius: 24px;
+	background: rgba(26, 26, 26, 0.96);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+.quality-dialog-title {
+	padding: 0.3em 1em 0.9em;
+	font-size: 1.15em;
+	font-weight: 700;
+	color: rgba(255, 255, 255, 0.92);
+}
+
+.quality-dialog-list {
+	flex: 1;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.quality-row {
+	display: flex;
+	align-items: center;
+	gap: 1em;
+	padding: 0.7em 1em;
+	border-radius: 14px;
+	cursor: pointer;
+	transition: background 160ms ease;
+}
+
+.quality-row:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.quality-row.current {
+	background: rgba(255, 255, 255, 0.12);
+}
+
+.quality-row-badge {
+	flex: 0 0 auto;
+	width: 2.5em;
+	height: 2.5em;
+	display: grid;
+	place-items: center;
+	border-radius: 50%;
+	background: rgba(255, 71, 0, 0.12);
+	color: rgba(255, 148, 110, 0.65);
+	font-size: 0.8em;
+	font-weight: 800;
+}
+
+.quality-row-badge.supported {
+	background: rgba(159, 207, 251, 0.2);
+	color: rgba(196, 241, 255, 0.9);
+}
+
+.quality-row-name {
+	flex: 1;
+	min-width: 0;
+	color: rgba(255, 255, 255, 0.9);
+	font-size: 1em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.quality-row-default {
+	flex: 0 0 auto;
+	color: rgba(255, 255, 255, 0.6);
+	font-weight: 700;
+	font-size: 0.9em;
+}
+
+.quality-mask-enter-active,
+.quality-mask-leave-active {
+	transition: opacity 220ms ease;
+}
+
+.quality-mask-enter-active .quality-dialog,
+.quality-mask-leave-active .quality-dialog {
+	transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
+}
+
+.quality-mask-enter-from,
+.quality-mask-leave-to {
+	opacity: 0;
+}
+
+.quality-mask-enter-from .quality-dialog,
+.quality-mask-leave-to .quality-dialog {
+	opacity: 0;
+	transform: scale(0.94);
+}
+
 
 .lyric {
   box-sizing: border-box;
@@ -713,6 +1035,37 @@ const togglePlaylistPanel = () => {
 .playlist-count {
   font-size: 0.9em;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.playlist-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.playlist-clear {
+  display: grid;
+  place-items: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.5);
+  transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.playlist-clear:hover:not(:disabled) {
+  color: #ff9a9e;
+}
+
+.playlist-clear:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.playlist-clear svg {
+  width: 1.05em;
+  height: 1.05em;
+  display: block;
 }
 
 .playlist-scroll {

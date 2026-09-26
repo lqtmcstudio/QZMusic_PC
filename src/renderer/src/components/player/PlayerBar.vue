@@ -40,7 +40,7 @@
         </div>
 
         <div class="player-actions">
-          <button class="icon-btn" :class="{ active: isLiked }" @click.stop="toggleLike" title="喜欢">
+          <button class="icon-btn" :class="{ active: playerStore.isCurrentSongLiked }" @click.stop="playerStore.toggleLike()" title="喜欢">
             <Icon icon="ph:heart-fill" />
           </button>
           <button class="icon-btn" @click.stop="toggleMode" :title="modeTitle">
@@ -110,9 +110,20 @@
                     <div class="queue-title">播放队列</div>
                     <div class="queue-subtitle">{{ playlist.length }} 首</div>
                   </div>
-                  <button class="queue-close" title="关闭" @click.stop="showQueuePanel = false">
-                    <Icon icon="lucide:x" />
-                  </button>
+                  <div class="queue-header-actions">
+                    <button
+                      class="queue-clear"
+                      title="清空播放队列"
+                      :disabled="playlist.length === 0"
+                      @click.stop="clearQueue"
+                    >
+                      <Icon icon="lucide:trash-2" />
+                      清空
+                    </button>
+                    <button class="queue-close" title="关闭" @click.stop="showQueuePanel = false">
+                      <Icon icon="lucide:x" />
+                    </button>
+                  </div>
                 </div>
 
                 <PlayerQueueList variant="popover" />
@@ -122,21 +133,21 @@
         </div>
       </div>
     </div>
-
-    <Teleport to="body">
-      <div
-        v-if="trackContextMenuVisible"
-        class="track-context-menu"
-        :style="{ left: trackContextMenuPos.x + 'px', top: trackContextMenuPos.y + 'px' }"
-        @click.stop
-      >
-        <button class="menu-row" @click="locateCurrentSong">
-          <Icon icon="lucide:list" />
-          <span>在播放列表中定位</span>
-        </button>
-      </div>
-    </Teleport>
   </transition>
+
+  <Teleport to="body">
+    <div
+      v-if="trackContextMenuVisible"
+      class="track-context-menu"
+      :style="{ left: trackContextMenuPos.x + 'px', top: trackContextMenuPos.y + 'px' }"
+      @click.stop
+    >
+      <button class="menu-row" @click="locateCurrentSong">
+        <Icon icon="lucide:list" />
+        <span>在播放列表中定位</span>
+      </button>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -161,7 +172,6 @@ const {
 } = storeToRefs(playerStore)
 
 const hasSongs = computed(() => playlist.value.length > 0)
-const isLiked = ref(false)
 const showAddMenu = ref(false)
 const showQueuePanel = ref(false)
 const albumColor = ref('var(--color-accent)')
@@ -221,7 +231,7 @@ const togglePlay = () => playerStore.togglePlay()
 const next = () => playerStore.next()
 const prev = () => playerStore.prev()
 const toggleMode = () => playerStore.toggleMode()
-const toggleLike = () => { isLiked.value = !isLiked.value }
+const clearQueue = () => playerStore.clearQueue()
 const togglePlaylist = () => {
   showQueuePanel.value = !showQueuePanel.value
   showAddMenu.value = false
@@ -936,6 +946,40 @@ onUnmounted(() => {
 .queue-close:hover {
   background: color-mix(in srgb, var(--album-color) 12%, transparent);
   color: var(--color-text-primary);
+}
+
+.queue-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.queue-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.queue-clear:hover:not(:disabled) {
+  background: color-mix(in srgb, #ff5a5f 16%, transparent);
+  color: #ff8a8f;
+}
+
+.queue-clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.queue-clear svg {
+  width: 15px;
+  height: 15px;
 }
 
 .slide-up-enter-active,

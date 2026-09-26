@@ -31,3 +31,5 @@ bun.lock
 out
 release
 release2
+# TS build info
+tsconfig.*.tsbuildinfo
