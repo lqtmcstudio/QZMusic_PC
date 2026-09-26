@@ -49,6 +49,8 @@ export interface IElectronAPI {
     toggleFullScreen: () => Promise<boolean>;
     setTaskbarProgress: (progress: number, mode?: 'normal' | 'paused') => Promise<boolean>;
     setKeepAwake: (playing: boolean) => Promise<boolean>;
+    getRuntimeInfo: () => Promise<{ appVersion: string; electronVersion: string; platform: string }>;
+    openExternal: (url: string) => Promise<boolean>;
     qzplayer: {
         load: (url: string) => Promise<void>;
         play: () => Promise<void>;

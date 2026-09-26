@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, powerSaveBlocker, Tray } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, powerSaveBlocker, Tray, screen, shell } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -147,12 +147,22 @@ app.on('open-url', (event, url) => {
 let isQuitting = false
 
 function createWindow() {
+    // DPI / 分辨率自适应：Electron 窗口尺寸以 DIP 计（随系统缩放自动换算物理像素），
+    // 按主显示器工作区推导默认尺寸并保持约 5:4 宽高比；最小尺寸收窄到不超过工作区，
+    // 避免低分屏（如 1366x768）下窗口或最小尺寸溢出屏幕
+    const { workAreaSize } = screen.getPrimaryDisplay()
+    const ratio = 1.25 // 宽高比 5:4
+    const minW = Math.min(950, workAreaSize.width)
+    const minH = Math.min(800, workAreaSize.height)
+    const width = Math.min(workAreaSize.width, Math.max(minW, Math.min(Math.round(workAreaSize.width * 0.8), Math.round(workAreaSize.height * 0.85 * ratio))))
+    const height = Math.min(workAreaSize.height, Math.max(minH, Math.round(width / ratio)))
+
     win = new BrowserWindow({
         frame: false,
-        minWidth: 950,
-        minHeight: 800,
-        width: 1000,
-        height: 800,
+        minWidth: minW,
+        minHeight: minH,
+        width,
+        height,
         webPreferences: {
             preload: path.join(__dirname, '../preload/index.js'),
             sandbox: false,
@@ -273,6 +283,22 @@ ipcMain.handle('window:setProgressBar', (_event, progress: number, mode: 'normal
 
 // --- 后台保活: 播放时阻止系统休眠/息屏, 避免黑屏后音频中断 ---
 let keepAwakeId: number | null = null
+
+// --- 运行时信息（设置-关于页展示）: app.getVersion() 读取应用内 package.json 的 version 字段 ---
+ipcMain.handle('app:get-runtime-info', () => ({
+    appVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    platform: `${process.platform}-${process.arch}`,
+}))
+
+// --- 外部链接（仅放行本项目 GitHub 域名, 防止任意 URL 打开） ---
+const ALLOWED_EXTERNAL_RE = /^https:\/\/github\.com\/lqtmcstudio/i
+ipcMain.handle('app:open-external', (_event, url: string) => {
+    if (typeof url !== 'string' || !ALLOWED_EXTERNAL_RE.test(url)) return false
+    shell.openExternal(url)
+    return true
+})
+
 ipcMain.handle('app:setKeepAwake', (_event, playing: boolean) => {
     try {
         if (playing && keepAwakeId === null) {

@@ -525,11 +525,40 @@
             <!-- 关于 -->
             <div v-else-if="activeCategory === 'about'" class="section">
               <h2 class="section-title">关于</h2>
-              <div class="about-content">
-                <div class="app-logo">🎶</div>
-                <h3>QZ Music</h3>
-                <p class="version">版本 1.0.0</p>
-                <p class="copyright">©2026 QZ <DEVELOPERS></DEVELOPERS></p>
+              <div class="about-hero">
+                <img :src="appIcon" class="about-logo" alt="QZ Music 图标" />
+                <div class="about-hero-text">
+                  <h3>QZ Music</h3>
+                  <p class="about-tagline">简洁、美观、拓展性强的音乐播放器</p>
+                </div>
+                <span class="about-version-badge">v{{ runtimeInfo.appVersion || '…' }}</span>
+              </div>
+
+              <div class="about-grid">
+                <div class="about-item">
+                  <span class="about-item-label">应用版本</span>
+                  <span class="about-item-value">v{{ runtimeInfo.appVersion || '—' }}</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-item-label">Electron 内核</span>
+                  <span class="about-item-value">{{ runtimeInfo.electronVersion || '—' }}</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-item-label">运行平台</span>
+                  <span class="about-item-value">{{ runtimeInfo.platform || '—' }}</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-item-label">开发者</span>
+                  <span class="about-item-value">lqtmcstudio</span>
+                </div>
+              </div>
+
+              <div class="about-footer">
+                <button class="about-link" @click="openProjectHome">
+                  <Icon icon="lucide:globe" />
+                  <span>GitHub 项目主页</span>
+                </button>
+                <span class="about-copyright">© 2026 QZ Developers</span>
               </div>
             </div>
 
@@ -558,10 +587,26 @@ import { ref, reactive, onBeforeMount, nextTick, watch, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { ElMessage } from 'element-plus';
 import { usePlayerStore } from '../stores/player';
+import appIcon from '../assets/icon.png';
 
 const playerStore = usePlayerStore();
 
 defineEmits(['close']);
+
+// ===== 关于页运行时信息（版本号读取自应用内 package.json，随构建自动更新） =====
+const runtimeInfo = ref({ appVersion: '', electronVersion: '', platform: '' });
+
+async function loadRuntimeInfo() {
+  try {
+    if (window.electronAPI?.getRuntimeInfo) {
+      runtimeInfo.value = await window.electronAPI.getRuntimeInfo();
+    }
+  } catch { /* 失败时保持占位符 */ }
+}
+
+function openProjectHome() {
+  window.electronAPI?.openExternal('https://github.com/lqtmcstudio/QZMusic_PC');
+}
 
 const categories = [
   { id: 'storage', name: '存储', icon: 'lucide:hard-drive' },
@@ -1138,7 +1183,7 @@ const changeCacheLocation = async () => {
 
 // Load settings BEFORE mount to avoid visual flicker
 onBeforeMount(async () => {
-  await Promise.all([loadCacheInfo(), loadAppearance(), loadPrivacy()]);
+  await Promise.all([loadCacheInfo(), loadAppearance(), loadPrivacy(), loadRuntimeInfo()]);
   isLoaded.value = true;
   // Enable transition after initial render
   nextTick(() => {
@@ -1428,41 +1473,115 @@ input:checked + .toggle-slider:before {
 }
 
 /* About */
-.about-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 60px 0;
-  text-align: center;
-}
-
-.app-logo {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #ec4141, #ff6b6b);
-  border-radius: var(--radius-xl);
+.about-hero {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 40px;
-  margin-bottom: 20px;
-  box-shadow: var(--shadow-lg);
+  gap: 18px;
+  padding: 26px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
 }
 
-.about-content h3 {
+.about-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: var(--color-bg-tertiary);
+  box-shadow: var(--shadow-md);
+  flex-shrink: 0;
+}
+
+.about-hero-text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.about-hero-text h3 {
+  margin: 0;
   font-size: var(--font-size-2xl);
   color: var(--color-text-primary);
-  margin-bottom: 8px;
 }
 
-.version {
-  color: var(--color-text-secondary);
-  margin-bottom: 4px;
-}
-
-.copyright {
-  color: var(--color-text-muted);
+.about-tagline {
+  margin: 6px 0 0;
   font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.about-version-badge {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.about-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  text-align: left;
+}
+
+.about-item-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.about-item-value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+.about-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.about-link:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.about-copyright {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
 }
 
 /* Scrollbar */

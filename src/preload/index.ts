@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     toggleFullScreen: () => ipcRenderer.invoke('window-toggle-fullscreen'),
     setTaskbarProgress: (progress: number, mode: 'normal' | 'paused' = 'normal') => ipcRenderer.invoke('window:setProgressBar', progress, mode),
     setKeepAwake: (playing: boolean) => ipcRenderer.invoke('app:setKeepAwake', playing),
+    getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
+    openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url),
 
     // qzplayer Control
     qzplayer: {
