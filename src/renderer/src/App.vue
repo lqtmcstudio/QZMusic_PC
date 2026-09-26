@@ -4,6 +4,12 @@
   <LoginDialog v-model:visible="showLoginDialog" />
   <Settings v-show="settingsVisible" v-if="showSettings" @close="showSettings = false" />
   <CloseConfirmDialog :visible="showCloseConfirm" @choose="onCloseConfirmChoose" />
+  <WhatsNewDialog
+    :visible="showWhatsNew"
+    :app-version="appVersion"
+    :previous-version="previousVersion"
+    @close="onWhatsNewClose"
+  />
 </template>
 
 <script setup lang="ts">
@@ -14,6 +20,7 @@ import Settings from './components/Settings.vue';
 import FullScreenPlayer from './components/FullScreenPlayer.vue';
 import LoginDialog from './components/LoginDialog.vue';
 import CloseConfirmDialog from './components/CloseConfirmDialog.vue';
+import WhatsNewDialog from './components/WhatsNewDialog.vue';
 import { useAuthStore } from './stores/auth';
 import { usePlaylistsStore } from './stores/playlists';
 import { usePlayerStore } from './stores/player';
@@ -30,6 +37,16 @@ const onCloseConfirmChoose = (action: 'quit' | 'tray' | 'cancel', remember: bool
   showCloseConfirm.value = false;
   window.electronAPI?.closeConfirmResult(action, remember);
 };
+
+const onWhatsNewClose = () => {
+  showWhatsNew.value = false;
+  window.electronAPI?.settings.set({ lastSeenVersion: appVersion.value });
+};
+
+// ===== 版本更新说明: 应用版本与上次展示的版本不一致时(即刚更新完)首次启动自动弹出 =====
+const showWhatsNew = ref(false);
+const appVersion = ref('');
+const previousVersion = ref('');
 
 const authStore = useAuthStore();
 const playlistsStore = usePlaylistsStore();
@@ -160,6 +177,20 @@ onMounted(async () => {
       : 'linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 12%, transparent) 0%, color-mix(in srgb, var(--color-accent) 7%, transparent) 44%, transparent 100%)';
     document.documentElement.style.setProperty('--color-atmosphere-gradient', atmosphere);
   }
+  // 版本更新说明: 与上次展示版本不同(刚更新/首次安装)时自动弹出
+  try {
+    if (window.electronAPI?.getRuntimeInfo && window.electronAPI?.settings) {
+      const [info, allSettings] = await Promise.all([
+        window.electronAPI.getRuntimeInfo(),
+        window.electronAPI.settings.getAll(),
+      ]);
+      appVersion.value = info.appVersion;
+      previousVersion.value = allSettings.lastSeenVersion || '';
+      if (info.appVersion && allSettings.lastSeenVersion !== info.appVersion) {
+        showWhatsNew.value = true;
+      }
+    }
+  } catch { /* 版本对比失败时静默跳过 */ }
   await authStore.init();
   await playlistsStore.refresh();
   // 启动后稍延迟检测一次(用户可能刚带着邀请口令打开应用)

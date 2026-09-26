@@ -119,6 +119,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
     },
+    "deb": {
+      "artifactName": "QZMusic-${version}-${arch}.deb"
+    },
     "extraResources": [
       {
         "from": "core/ffmpeg_license/",

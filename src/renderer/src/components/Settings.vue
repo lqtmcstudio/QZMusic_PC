@@ -563,15 +563,24 @@
                 </div>
                 <div class="about-item">
                   <span class="about-item-label">开发者</span>
-                  <span class="about-item-value">lqtmcstudio</span>
+                  <span class="about-item-value about-devs">
+                    <button class="about-dev-link" title="打开 GitHub 主页" @click="openGithubProfile('lqtmcstudio')">@lqtmcstudio</button>
+                    <button class="about-dev-link" title="打开 GitHub 主页" @click="openGithubProfile('Miao-moe')">@Miao-moe</button>
+                  </span>
                 </div>
               </div>
 
               <div class="about-footer">
-                <button class="about-link" @click="openProjectHome">
-                  <Icon icon="lucide:globe" />
-                  <span>GitHub 项目主页</span>
-                </button>
+                <div class="about-links">
+                  <button class="about-link" @click="openWebsite">
+                    <Icon icon="lucide:home" />
+                    <span>官方网站</span>
+                  </button>
+                  <button class="about-link" @click="openProjectHome">
+                    <Icon icon="lucide:globe" />
+                    <span>GitHub 项目主页</span>
+                  </button>
+                </div>
                 <span class="about-copyright">© 2026 QZ Developers</span>
               </div>
             </div>
@@ -620,6 +629,14 @@ async function loadRuntimeInfo() {
 
 function openProjectHome() {
   window.electronAPI?.openExternal('https://github.com/lqtmcstudio/QZMusic_PC');
+}
+
+function openWebsite() {
+  window.electronAPI?.openExternal('https://music.qz.shiqianjiang.cn');
+}
+
+function openGithubProfile(username: string) {
+  window.electronAPI?.openExternal(`https://github.com/${username}`);
 }
 
 const categories = [
@@ -1166,10 +1183,18 @@ const openCacheFolder = async () => {
 };
 
 const clearCache = async () => {
-  if (window.electronAPI) {
-    await window.electronAPI.clearCache();
-    await loadCacheInfo();
+  if (!window.electronAPI) return;
+  try {
+    const result = await window.electronAPI.clearCache();
+    if (result?.success) {
+      ElMessage.success('缓存已清理');
+    } else {
+      ElMessage.error(result?.error ? `清理失败：${result.error}` : '清理失败，请稍后重试');
+    }
+  } catch {
+    ElMessage.error('清理失败，请稍后重试');
   }
+  await loadCacheInfo();
 };
 
 const clearLyricCache = async () => {
@@ -1578,12 +1603,42 @@ input:checked + .toggle-slider:before {
   word-break: break-all;
 }
 
+.about-devs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.about-dev-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.about-dev-link:hover {
+  color: var(--color-accent-hover);
+}
+
 .about-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-top: 18px;
+}
+
+.about-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .about-link {
