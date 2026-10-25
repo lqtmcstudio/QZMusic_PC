@@ -14,6 +14,7 @@ const toCloneableObject = (value: unknown): any => {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+    platform: process.platform,
     // 窗口控制
     minimizeWindow: () => ipcRenderer.send('window-minimize'),
     maximizeWindow: () => ipcRenderer.send('window-maximize'),

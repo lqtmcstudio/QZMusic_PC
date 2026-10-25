@@ -40,6 +40,7 @@ export interface AudioDeviceInfo {
 }
 
 export interface IElectronAPI {
+    readonly platform: string;
     minimizeWindow: () => void;
     maximizeWindow: () => void;
     closeWindow: () => void;

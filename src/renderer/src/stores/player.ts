@@ -6,6 +6,7 @@ import { parseLyric } from '../utils/lyricUtil'
 import { useListenTogetherStore } from './listenTogether';
 import { useAuthStore } from './auth';
 import { calibratedNow } from './timeCalibrator';
+import { playbackBackend, usesHtmlAudio } from '../utils/playbackBackend';
 export enum PlayMode {
     List = 'list',
     Single = 'single',
@@ -19,7 +20,7 @@ const dummyAudio = new Audio();
 dummyAudio.src = SILENT_AUDIO_URL;
 dummyAudio.loop = true;
 dummyAudio.volume = 0.01;
-if (typeof document !== 'undefined') {
+if (!usesHtmlAudio && typeof document !== 'undefined') {
     document.body.appendChild(dummyAudio);
 }
 
@@ -35,9 +36,7 @@ export const usePlayerStore = defineStore('player', () => {
         localStorage.setItem('qz-player-volume', newVol.toString());
     });
     // Sync initial volume to backend
-    if (window.electronAPI?.qzplayer) {
-        window.electronAPI.qzplayer.setVolume(volume.value).catch(console.error);
-    }
+    playbackBackend.setVolume(volume.value).catch(console.error);
     const duration = ref(0); //毫秒级
     const currentTime = ref(0); //毫秒级
 
@@ -295,6 +294,7 @@ export const usePlayerStore = defineStore('player', () => {
 
     // --- Helpers ---
     const activateDummyAudio = async () => {
+        if (usesHtmlAudio) return; // Real audio already supplies the system media session.
         if (dummyAudio.paused) {
             try {
                 await dummyAudio.play().catch(e => console.warn('Dummy play failed:', e));
@@ -309,6 +309,10 @@ export const usePlayerStore = defineStore('player', () => {
 
     // 同步浏览器状态
     const syncDummyAudioState = (shouldPlay: boolean) => {
+        if (usesHtmlAudio) {
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = shouldPlay ? 'playing' : 'paused';
+            return;
+        }
         if (shouldPlay) {
             if (dummyAudio.paused) {
                 dummyAudio.play().catch(() => { });
@@ -502,6 +506,7 @@ export const usePlayerStore = defineStore('player', () => {
 
     // 防重入: 同一首歌正在加载时, 忽略重复触发(避免 PING/UPDATE 密集时重复 loadfile 触发代理级联)
     let loadingSongKey: string | null = null;
+    let playbackRequest = 0;
 
     const playSong = async (song: Song, autoPlay = true, queueIndex?: number) => {
         if (!song) return;
@@ -511,6 +516,7 @@ export const usePlayerStore = defineStore('player', () => {
             return;
         }
         loadingSongKey = songKey;
+        const request = ++playbackRequest;
         // Reset retry count only when switching to a genuinely different song
         const prevSongKey = currentSong.value ? `${currentSong.value.source}:${currentSong.value.id}` : null;
         if (prevSongKey !== songKey) {
@@ -529,6 +535,7 @@ export const usePlayerStore = defineStore('player', () => {
             }
 
             await activateDummyAudio();
+            if (request !== playbackRequest) return;
             updateMediaSession(song);
             fetchLyrics(song);
 
@@ -538,19 +545,27 @@ export const usePlayerStore = defineStore('player', () => {
                 // Remote: 走本地代理按 source+id 取, 音质由 autoGetQuality 自动选择
                 const quality = autoGetQuality(song);
                 currentQuality.value = quality;
-                playUrl = `http://localhost:5266/music?source=${song.source}&id=${song.id}&quality=${quality}`;
+                playUrl = `http://127.0.0.1:5266/music?${new URLSearchParams({ source: song.source, id: String(song.id), quality })}`;
                 console.log('[Player] Using Proxy:', playUrl);
             }
 
             if (playUrl) {
                 console.log('Playing:', song.name, 'AutoPlay:', autoPlay);
                 try {
-                    await window.electronAPI.qzplayer.load(playUrl);
+                    if (usesHtmlAudio) {
+                        isPlaying.value = false;
+                        syncDummyAudioState(false);
+                    }
+                    await playbackBackend.load(playUrl);
+                    if (request !== playbackRequest) return;
                     if (autoPlay) {
-                        await window.electronAPI.qzplayer.play();
-                        isPlaying.value = true;
+                        await playbackBackend.play();
+                        if (request !== playbackRequest) return;
+                        // HTML Audio reports actual playback via `playing`. An aborted
+                        // play promise (pause while buffering) must not set it back to true.
+                        if (!usesHtmlAudio) isPlaying.value = true;
                     } else {
-                        await window.electronAPI.qzplayer.pause();
+                        await playbackBackend.pause();
                         isPlaying.value = false;
                         syncDummyAudioState(false);
                     }
@@ -563,15 +578,19 @@ export const usePlayerStore = defineStore('player', () => {
                     notifyTogetherSeek();
                 } catch (e) {
                     // IPC call failed (rare), handle sync error
-                    console.error("IPC Play request failed:", e);
+                    if (request !== playbackRequest) return;
+                    console.error('Playback request failed:', e);
+                    // Let the retry load the same song instead of hitting the loading guard.
+                    loadingSongKey = null;
                     if (autoPlay) await handlePlayError();
                 }
             } else {
                 console.warn("Song has no URL");
+                loadingSongKey = null;
                 if (autoPlay) await handlePlayError();
             }
         } finally {
-            loadingSongKey = null;
+            if (request === playbackRequest) loadingSongKey = null;
         }
     };
 
@@ -609,14 +628,14 @@ export const usePlayerStore = defineStore('player', () => {
             artwork: song.pic ? [{ src: song.pic, sizes: '512x512', type: 'image/png' }] : []
         });
 
-        navigator.mediaSession.setActionHandler('play', () => window.electronAPI.qzplayer.play());
-        navigator.mediaSession.setActionHandler('pause', () => window.electronAPI.qzplayer.pause());
+        navigator.mediaSession.setActionHandler('play', () => { playbackBackend.play().catch(handlePlayError); });
+        navigator.mediaSession.setActionHandler('pause', () => { playbackBackend.pause().catch(console.warn); });
         navigator.mediaSession.setActionHandler('previoustrack', () => prev());
         navigator.mediaSession.setActionHandler('nexttrack', () => next(true));
 
         navigator.mediaSession.setActionHandler('seekto', (details) => {
             if (details.seekTime != null) {
-                seek(details.seekTime).then();
+                seek(details.seekTime * 1000).catch(console.warn);
             }
         });
     };
@@ -723,7 +742,9 @@ export const usePlayerStore = defineStore('player', () => {
             currentIndex.value = -1;
             currentSong.value = null;
             isPlaying.value = false;
-            await window.electronAPI.qzplayer.pause();
+            ++playbackRequest;
+            loadingSongKey = null;
+            await playbackBackend.stop();
             syncDummyAudioState(false);
             return;
         }
@@ -743,7 +764,9 @@ export const usePlayerStore = defineStore('player', () => {
         currentSong.value = null;
         isPlaying.value = false;
         lyrics.value = { lines: [] };
-        await window.electronAPI.qzplayer.stop();
+        ++playbackRequest;
+        loadingSongKey = null;
+        await playbackBackend.stop();
         syncDummyAudioState(false);
         const together = listenTogether();
         if (together?.canControl && !together.isApplyingRemote) {
@@ -797,7 +820,9 @@ export const usePlayerStore = defineStore('player', () => {
             currentIndex.value = -1;
             currentSong.value = null;
             isPlaying.value = false;
-            await window.electronAPI.qzplayer.pause();
+            ++playbackRequest;
+            loadingSongKey = null;
+            await playbackBackend.stop();
             syncDummyAudioState(false);
             return;
         }
@@ -814,11 +839,13 @@ export const usePlayerStore = defineStore('player', () => {
             await playSong(nextSong, shouldPlay, nextIndex);
         } else if (shouldPlay !== isPlaying.value) {
             if (shouldPlay) {
-                await window.electronAPI.qzplayer.play();
-                isPlaying.value = true;
-                syncDummyAudioState(true);
+                await playbackBackend.play();
+                if (!usesHtmlAudio) {
+                    isPlaying.value = true;
+                    syncDummyAudioState(true);
+                }
             } else {
-                await window.electronAPI.qzplayer.pause();
+                await playbackBackend.pause();
                 isPlaying.value = false;
                 syncDummyAudioState(false);
             }
@@ -827,7 +854,7 @@ export const usePlayerStore = defineStore('player', () => {
         // 显式动作(SEEK/PLAY/...)用小阈值, 保证用户 seek 立即同步; 心跳漂移纠正用大阈值, 避免微跳。
         const seekThreshold = isHeartbeat ? 800 : 150;
         if (Math.abs((currentTime.value || 0) - targetMs) > seekThreshold) {
-            await window.electronAPI.qzplayer.seek(targetMs);
+            await playbackBackend.seek(targetMs);
             currentTime.value = targetMs;
         }
     };
@@ -848,7 +875,7 @@ export const usePlayerStore = defineStore('player', () => {
             // 一起听听众: 不自动跳歌/重试, 交给 host 控制, 避免失步 + 代理级联
             const together = listenTogether();
             if (together?.connected && !together.isHost) {
-                await window.electronAPI.qzplayer.pause();
+                await playbackBackend.pause();
                 isPlaying.value = false;
                 playErrorCount.value = 0;
                 currentSongRetryCount.value = 0;
@@ -868,7 +895,7 @@ export const usePlayerStore = defineStore('player', () => {
             currentSongRetryCount.value = 0;
             playErrorCount.value++;
             if (playErrorCount.value >= MAX_CONSECUTIVE_SKIP_COUNT) {
-                await window.electronAPI.qzplayer.pause();
+                await playbackBackend.pause();
                 isPlaying.value = false;
                 ElMessage.error('\u8fde\u7eed 3 \u9996\u6b4c\u66f2\u64ad\u653e\u5931\u8d25\uff0c\u5df2\u6682\u505c\u64ad\u653e');
                 playErrorCount.value = 0;
@@ -886,7 +913,7 @@ export const usePlayerStore = defineStore('player', () => {
     // Listeners
     let lastReportedDurationKey: string | null = null;
     if (window.electronAPI) {
-        window.electronAPI.qzplayer.onEvent(async (_event, data) => {
+        playbackBackend.onEvent(async (_event, data) => {
             if (data.event === 'property-change') {
                 if (data.name === 'pause') {
                     const isPaused = data.data;
@@ -919,6 +946,10 @@ export const usePlayerStore = defineStore('player', () => {
             if (data.event === 'end-file') {
                 const reason = data.reason;
                 if (reason === 'eof') {
+                    if (usesHtmlAudio) {
+                        isPlaying.value = false;
+                        syncDummyAudioState(false);
+                    }
                     // 一起听: 切歌完全由服务端 reconcile 控制, 客户端不自动 next 也不发 EOF,
                     // 否则会与服务端双重切歌并互相错位。
                     const together = listenTogether();
@@ -934,16 +965,21 @@ export const usePlayerStore = defineStore('player', () => {
     }
 
     const togglePlay = async () => {
-        await window.electronAPI.qzplayer.togglePause();
+        try {
+            await playbackBackend.togglePause();
+        } catch (error) {
+            console.error('Playback failed:', error);
+            await handlePlayError();
+        }
     };
 
     const setVolume = async (vol: number) => {
         volume.value = vol;
-        await window.electronAPI.qzplayer.setVolume(vol);
+        await playbackBackend.setVolume(vol);
     };
 
     const seek = async (time: number) => {
-        await window.electronAPI.qzplayer.seek(time);
+        await playbackBackend.seek(time);
         currentTime.value = time;
         // 用户主动 seek: 直接发送, 绕过 notifyTogetherSeek 的 isApplyingRemote 守卫,
         // 避免在应用远端 UPDATE 的窗口内用户 seek 被吞掉导致“seek 没同步到对面”。
@@ -992,6 +1028,25 @@ export const usePlayerStore = defineStore('player', () => {
     });
 
     watch([currentTime, duration, isPlaying, currentSong], syncTaskbarProgress, { immediate: true });
+
+    // The real element activates macOS Now Playing; publish a seconds-based timeline.
+    if (usesHtmlAudio && navigator.mediaSession?.setPositionState) {
+        watch([currentTime, duration], () => {
+            try {
+                if (duration.value > 0) {
+                    navigator.mediaSession.setPositionState({
+                        duration: duration.value / 1000,
+                        playbackRate: 1,
+                        position: Math.max(0, Math.min(currentTime.value, duration.value)) / 1000,
+                    });
+                } else {
+                    navigator.mediaSession.setPositionState();
+                }
+            } catch (error) {
+                console.warn('[Player] Failed to update media position:', error);
+            }
+        });
+    }
 
     // 切换歌曲时: 用单曲查询刷新当前歌曲的喜欢状态(不用全量拉取)
     watch(() => [currentSong.value?.source, currentSong.value?.id], () => {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, powerSaveBlocker, Tray, screen, shell } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, powerSaveBlocker, Tray, screen, shell, nativeImage } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -184,6 +184,9 @@ function createWindow() {
             preload: path.join(__dirname, '../preload/index.js'),
             sandbox: false,
             contextIsolation: true,
+            autoplayPolicy: 'no-user-gesture-required',
+            // HTML Audio must continue playing/updating progress while hidden on macOS.
+            backgroundThrottling: process.platform !== 'darwin',
             webSecurity: false
         }
     })
@@ -202,18 +205,24 @@ function createWindow() {
         win?.webContents.send('app:confirm-close')
     })
 
-    // 尝试创建托盘
+    win.on('closed', () => { win = null })
+
+    // PNG works on macOS/Linux; ICO is Windows-only. Do not duplicate the tray on activate.
     try {
-        const iconPath = path.join(process.env.APP_ROOT!, 'public', 'icon.ico')
-        if (fs.existsSync(iconPath)) {
-            appTray = new Tray(iconPath)
+        const iconPath = path.join(process.env.APP_ROOT!, 'public', process.platform === 'win32' ? 'icon.ico' : 'icon.png')
+        if (!appTray && fs.existsSync(iconPath)) {
+            const image = nativeImage.createFromPath(iconPath)
+            appTray = new Tray(process.platform === 'darwin' ? image.resize({ width: 18, height: 18 }) : image)
             appTray.setToolTip('QZ Music')
-            appTray.on('double-click', () => {
+            const showWindow = () => {
+                if (!win || win.isDestroyed()) createWindow()
                 win?.show()
                 win?.focus()
-            })
+            }
+            appTray.on('double-click', showWindow)
+            if (process.platform === 'darwin') appTray.on('click', showWindow)
             const contextMenu = Menu.buildFromTemplate([
-                { label: '显示主窗口', click: () => { win?.show(); win?.focus() } },
+                { label: '显示主窗口', click: showWindow },
                 { type: 'separator' },
                 { label: '退出', click: () => { appTray?.destroy(); app.quit() } },
             ])
@@ -262,7 +271,7 @@ ipcMain.on('close-confirm-result', (_event, action: 'quit' | 'tray' | 'cancel', 
     if (action === 'quit') {
         isQuitting = true
         appTray?.destroy()
-        win?.destroy()
+        app.quit()
     } else {
         win?.hide()
     }
@@ -886,9 +895,9 @@ function registerZoomShortcuts(win: BrowserWindow) {
 }
 
 app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow()
-    }
+    if (!win || win.isDestroyed()) createWindow()
+    win?.show()
+    win?.focus()
 })
 
 // Test
@@ -899,7 +908,13 @@ app.whenReady().then(() => {
         fs.mkdirSync(pluginsPath, { recursive: true })
     }
     // ----------------------------------------
-    Menu.setApplicationMenu(null)
+    // macOS needs an application/edit menu for Cmd+Q, copy/paste and Dock behavior.
+    Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([
+        { role: 'appMenu' },
+        { role: 'editMenu' },
+        { role: 'viewMenu' },
+        { role: 'windowMenu' },
+    ]) : null)
     try {
         createWindow()
     } catch (err) {
@@ -914,6 +929,9 @@ app.whenReady().then(() => {
 
     // Start Proxy Server
     startProxyServer()
+
+    // macOS uses the renderer's HTMLAudioElement; never spawn/restart a native core.
+    if (process.platform === 'darwin') return
 
     // Start qzplayer
     qzplayer = new QzpController()

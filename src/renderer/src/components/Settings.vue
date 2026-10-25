@@ -320,6 +320,14 @@
                 </div>
               </div>
 
+              <div v-if="usesHtmlAudio" class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-label">播放引擎：HTML Audio</div>
+                  <div class="setting-desc">macOS 使用内置音频播放，通过系统默认设备输出。支持格式取决于 Electron 解码器；暂不支持低音增强、独占模式、自动采样率匹配和音频频谱分析。</div>
+                </div>
+              </div>
+
+              <template v-if="!usesHtmlAudio">
               <!-- 低音增强 -->
               <div class="setting-item bass-boost-item">
                 <div class="setting-info">
@@ -507,6 +515,8 @@
                 </div>
               </div>
 
+              </template>
+
               <div class="placeholder-content" style="padding: 30px 0;">
                 <Icon icon="lucide:headphones" class="placeholder-icon" style="width: 40px; height: 40px; margin-bottom: 8px;" />
                 <p>淡入淡出等设置即将推出</p>
@@ -611,6 +621,7 @@ import { Icon } from '@iconify/vue';
 import { ElMessage } from 'element-plus';
 import { usePlayerStore } from '../stores/player';
 import appIcon from '../assets/icon.png';
+import { usesHtmlAudio } from '../utils/playbackBackend';
 
 const playerStore = usePlayerStore();
 
@@ -844,7 +855,7 @@ watch(activeCategory, (newVal) => {
     if (newVal === 'plugins') {
         loadPlugins();
     }
-    if (newVal === 'playback') {
+    if (newVal === 'playback' && !usesHtmlAudio) {
         loadAudioDevices();
         refreshChain();
     }
@@ -980,7 +991,7 @@ const copyLog = () => {
 };
 
 // 监听 qzplayer 事件 (音频设备/链路/日志)
-if (window.electronAPI?.qzplayer?.onEvent) {
+if (!usesHtmlAudio && window.electronAPI?.qzplayer?.onEvent) {
   window.electronAPI.qzplayer.onEvent((_event: any, data: any) => {
     // 设备列表响应
     if (data.event === 'audio-devices' && Array.isArray(data.devices)) {

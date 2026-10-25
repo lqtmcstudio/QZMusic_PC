@@ -1,4 +1,4 @@
-# QZ Music for Windows
+# QZ Music for Desktop
 
 一款简洁美观的跨平台音乐播放器，提供优雅的桌面音乐体验
 安卓版本请访问：[官方网站](https://music.qz.shiqianjiang.cn)
@@ -60,6 +60,50 @@ sudo dnf install -y alsa-lib taglib
 # Arch Linux
 sudo pacman -S --needed alsa-lib taglib
 ```
+
+## 🍎 macOS 支持（Apple Silicon / Intel）
+
+macOS 自动使用 Electron 内置的 **HTML `<audio>`** 播放，无需编译 Apple 版 QZPlayer。
+Windows / Linux 仍使用原生 QZPlayer，不受影响。
+
+- 在线音乐仍通过主进程的 `127.0.0.1:5266` 代理取流，保留插件解析、缓存和 Range 拖动。
+- 支持本地音乐、音量、进度、自动切歌、歌词、一起听，以及 Media Session 播放控制。
+- 使用系统默认音频设备；暂不提供原生核心的低音增强、独占输出、自动采样率匹配及频谱分析。
+- 格式支持以当前 Electron/Chromium 解码器为准，不等同于 QZPlayer 的完整 FFmpeg 格式支持；不支持的格式会走现有重试/跳过流程。
+
+### 在 Mac 上开发与打包
+
+```bash
+# 本地标签扫描器需要 Xcode Command Line Tools 与 TagLib；不是播放核心
+xcode-select --install  # 已安装则跳过
+brew install taglib pkg-config dylibbundler
+bash native/taglib_reader/build.sh
+
+npm install
+npm run dev
+# 或打包当前 Mac 的架构（arm64 / x64）
+npm run electron:build:mac
+# 产物：release/QZMusic-*-mac-*.dmg 和 *.zip
+```
+
+扫描器构建脚本会将所需的 Homebrew 动态库复制到 `build/lib/` 并改写加载路径，
+打包时一起携带，用户不需要安装 Homebrew。请在目标架构的 Mac 上编译和打包，
+不要复用 Linux 的扫描器或直接跨架构打包。本地扫描器未构建时，在线音乐仍可开发使用。
+
+GitHub Actions 分别构建 arm64 和 x64 包。默认构建未配置 Developer ID 签名/公证，
+首次运行可能受到 Gatekeeper 限制；正式分发建议配置 Apple 签名和公证凭据。
+仅在确认安装包可信时，按 macOS“隐私与安全性”中的提示允许打开。
+
+### 验证
+
+```bash
+npm run test:audio  # HTML Audio 后端回归测试，不需要 macOS
+npm run test:audio:electron  # 真实 Chromium 音频元素冒烟测试（需桌面环境）
+npm run build
+```
+
+Mac 实机验收：在线/本地播放与拖动进度、暂停恢复、切歌与列表循环、一起听同步、
+系统媒体键、最小化/隐藏后持续播放、Dock 恢复、Cmd+Q 退出，以及安装包在无 Homebrew 环境下的本地扫描。
 
 ## 📖 项目说明
 

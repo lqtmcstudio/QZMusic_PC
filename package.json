@@ -12,7 +12,10 @@
     "build": "npm run icons && electron-vite build",
     "preview": "electron-vite preview",
     "electron:build": "npm run icons && electron-vite build && electron-builder --win --x64 --config --publish never",
-    "electron:build:linux": "npm run icons && electron-vite build && electron-builder --linux --x64 --config --publish never"
+    "electron:build:linux": "npm run icons && electron-vite build && electron-builder --linux --x64 --config --publish never",
+    "electron:build:mac": "npm run icons && electron-vite build && electron-builder --mac --config --publish never",
+    "test:audio": "node --test tests/htmlAudioBackend.test.mjs",
+    "test:audio:electron": "electron tests/htmlAudioBackend.electron.cjs"
   },
   "devDependencies": {
     "@applemusic-like-lyrics/core": "file:amll-local/packages/core",
@@ -65,7 +68,8 @@
     "files": [
       "out/**",
       "package.json",
-      "public/icon.ico"
+      "public/icon.ico",
+      "public/icon.png"
     ],
     "directories": {
       "output": "release"
@@ -114,6 +118,22 @@
         }
       ]
     },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "icon": "public/icon.png",
+      "category": "public.app-category.music",
+      "artifactName": "QZMusic-${version}-mac-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "native/taglib_reader/build/",
+          "to": "native/",
+          "filter": ["taglib_reader_cli", "lib/**"]
+        }
+      ]
+    },
+    "protocols": [
+      { "name": "QZMusic", "schemes": ["qzmusic"] }
+    ],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

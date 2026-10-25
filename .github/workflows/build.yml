@@ -8,6 +8,7 @@
 # 产物:
 #   - Linux (amd64): AppImage + deb
 #   - Windows (x64): NSIS 安装包
+#   - macOS (arm64 / x64): DMG + ZIP，HTML Audio，无 QZPlayer
 #
 # 注意: 请在提交前确保以下二进制已纳入 git 版本库 (否则 CI 拉不到):
 #   core/qzplayer          (Linux 播放核心, ELF)
@@ -103,9 +104,57 @@ jobs:
             release/*.blockmap
           if-no-files-found: error
 
+  build-macos:
+    name: macOS (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build local music scanner (bundle TagLib dylibs)
+        run: |
+          brew install taglib pkg-config dylibbundler
+          bash native/taglib_reader/build.sh
+
+      - name: Test HTML Audio backend
+        run: |
+          npm run test:audio
+          npm run test:audio:electron
+
+      - name: Build macOS packages
+        run: npm run electron:build:mac -- --${{ matrix.arch }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qzmusic-macos-${{ matrix.arch }}
+          path: |
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error
+
   release:
     name: Create GitHub Release
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, build-macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
